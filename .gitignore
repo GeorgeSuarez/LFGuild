@@ -1,0 +1,8 @@
+build/
+Pods/
+*.log
+*.swp
+*.plist
+*.xcworkspace
+*.xcuserstate
+*.DS_Store
