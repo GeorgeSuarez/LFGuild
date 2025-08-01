@@ -13,14 +13,15 @@ struct LoginView: View {
 
     var body: some View {
         VStack(alignment: .center) {
+            Text("LFGuild")
+                .font(.largeTitle)
+                .fontWeight(.bold)
             VStack(alignment: .leading, spacing: 8) {
-
-                    
                 Image("LFGuildLogo")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                 
-                TextField("Email", text: $email)
+                TextField("Email", text: $email, prompt: Text("Email").foregroundColor(.blue))
                     .textFieldStyle(PlainTextFieldStyle())
                     .padding(15)
                     .frame(maxWidth: .infinity)
@@ -32,7 +33,7 @@ struct LoginView: View {
                     )
                     .padding()
 
-                SecureField("Password", text: $password)
+                SecureField("Password", text: $password, prompt: Text("Password").foregroundColor(.blue))
                     .textFieldStyle(PlainTextFieldStyle())
                     .padding(15)
                     .frame(maxWidth: .infinity)
