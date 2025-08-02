@@ -7,7 +7,7 @@
 
 import Foundation
 
-class UserModel: Identifiable, ObservableObject {
+class UserModel: Identifiable, ObservableObject, Equatable {
     let id: UUID
     var name: String
     var email: String
@@ -18,6 +18,10 @@ class UserModel: Identifiable, ObservableObject {
         self.name = name
         self.email = email
         self.countryRegion = countryRegion
+    }
+    
+    static func == (lhs: UserModel, rhs: UserModel) -> Bool {
+        return lhs.id == rhs.id
     }
     
 }
