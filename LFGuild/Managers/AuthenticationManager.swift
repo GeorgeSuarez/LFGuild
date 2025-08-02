@@ -8,14 +8,20 @@
 import Foundation
 import SwiftUI
 import Combine
+import FirebaseAuth
+import FirebaseFirestore
 
 enum AuthenticationError: LocalizedError {
     case invalidEmail
     case weakPassword
     case networkError
     case invalidCredentials
+    case wrongPassword
     case userNotFound
     case emailAlreadyExists
+    case emailAlreadyInUse
+    case userDisabled
+    case tooManyRequests
     case unknown(String)
     
     var errorDescription: String? {
@@ -26,14 +32,41 @@ enum AuthenticationError: LocalizedError {
             return "Password must be at least 8 characters long"
         case .networkError:
             return "Network connection failed. Please try again"
-        case .invalidCredentials:
+        case .invalidCredentials, .wrongPassword:
             return "Invalid email or password"
         case .userNotFound:
             return "No account found with this email"
-        case .emailAlreadyExists:
+        case .emailAlreadyExists, .emailAlreadyInUse:
             return "An account with this email already exists"
+        case .userDisabled:
+            return "This account has been disabled"
+        case .tooManyRequests:
+            return "Too many failed attempts. Please try again later"
         case .unknown(let message):
             return message
+        }
+    }
+    
+    static func from(_ error: Error) -> AuthenticationError {
+        guard let authError = error as NSError? else {
+            return .unknown(error.localizedDescription)
+        }
+        
+        switch authError.code {
+        case AuthErrorCode.invalidEmail.rawValue:
+            return .invalidEmail
+        case AuthErrorCode.weakPassword.rawValue:
+            return .weakPassword
+        case AuthErrorCode.wrongPassword.rawValue, AuthErrorCode.userNotFound.rawValue:
+            return .wrongPassword
+        case AuthErrorCode.emailAlreadyInUse.rawValue:
+            return .emailAlreadyInUse
+        case AuthErrorCode.userDisabled.rawValue:
+            return .userDisabled
+        case AuthErrorCode.tooManyRequests.rawValue:
+            return .tooManyRequests
+        default:
+            return .unknown(authError.localizedDescription)
         }
     }
 }
@@ -61,126 +94,165 @@ class AuthenticationManager: ObservableObject {
     @Published var authState: AuthenticationState = .idle
     @Published var currentUser: UserModel?
     
+    private let db = Firestore.firestore()
+    private var authStateListener: AuthStateDidChangeListenerHandle?
     private let keychain = KeychainManager()
     private var cancellables: Set<AnyCancellable> = []
     
     init() {
-        checkAuthenticationStatus()
+        setupAuthStateListener()
+    }
+    
+    deinit {
+        if let listener = authStateListener {
+            Auth.auth().removeStateDidChangeListener(listener)
+        }
     }
     
     func signIn(email: String, password: String) async throws {
         authState = .loading
         
-        try validateEmail(email)
-        try validatePassword(password)
-        
         do {
-            let user = try await performSignIn(email: email, password: password)
-            
-            try keychain.store(email: email, password: password)
+            let result = try await Auth.auth().signIn(withEmail: email, password: password)
+            let user = try await fetchUserProfile(uid: result.user.uid, email: email)
             
             currentUser = user
             authState = .authenticated(user)
+            
         } catch {
             authState = .unauthenticated
-            throw error
+            throw AuthenticationError.from(error)
         }
     }
     
     func signOut() {
-        keychain.deleteCrendentials()
-        currentUser = nil
-        authState = .unauthenticated
+        do {
+            try Auth.auth().signOut()
+            currentUser = nil
+            authState = .unauthenticated
+        } catch {
+            print("Error signing out: \(error.localizedDescription)")
+        }
     }
     
     func register(name: String, email: String, password: String, countryRegion: String) async throws {
         authState = .loading
         
-        try validateEmail(email)
-        try validatePassword(password)
-        try validateName(name)
-        
         do {
-            let user = try await performRegistration(
+            let result = try await Auth.auth().createUser(withEmail: email, password: password)
+            
+            let userModel = UserModel(
+                firebaseUID: result.user.uid,
                 name: name,
                 email: email,
-                password: password,
                 countryRegion: countryRegion
             )
             
-            try keychain.store(email: email, password: password)
+            try await createUserProfile(userModel)
             
-            currentUser = user
-            authState = .authenticated(user)
+            currentUser = userModel
+            authState = .authenticated(userModel)
             
         } catch {
             authState = .unauthenticated
-            throw error
+            throw AuthenticationError.from(error)
         }
     }
     
-    private func checkAuthenticationStatus() {
-        if let credentials = keychain.getCredentials() {
-            Task {
-                do {
-                    let user = try await performSignIn(
-                        email: credentials.email,
-                        password: credentials.password
-                    )
-                    currentUser = user
-                    authState = .authenticated(user)
-                } catch {
-                    authState = .unauthenticated
+    func resetPassword(email: String) async throws {
+        do {
+            try await Auth.auth().sendPasswordReset(withEmail: email)
+        } catch {
+            throw AuthenticationError.from(error)
+        }
+    }
+    
+    func updateProfile(name: String? = nil, countryRegion: String? = nil) async throws {
+        guard let currentUser = currentUser,
+              let firebaseUser = Auth.auth().currentUser else {
+            throw AuthenticationError.userNotFound
+        }
+        
+        var updates: [String: Any] = [:]
+        var updatedUser = currentUser
+        
+        if let name = name {
+            updates["name]"] = name
+            updatedUser.name = name
+        }
+        
+        if let countryRegion = countryRegion {
+            updates["countryRegion"] = countryRegion
+            updatedUser.countryRegion = countryRegion
+        }
+        
+        if !updates.isEmpty {
+            updates["updatedAt"] = FieldValue.serverTimestamp()
+            
+            try await db.collection("users").document(firebaseUser.uid).updateData(updates)
+            self.currentUser = updatedUser
+        }
+    }
+    
+    func deleteAccount() async throws {
+        guard let firebaseUser = Auth.auth().currentUser else {
+            throw AuthenticationError.userNotFound
+        }
+        
+        try await db.collection("users").document(firebaseUser.uid).delete()
+        
+        try await firebaseUser.delete()
+        
+        currentUser = nil
+        authState = .unauthenticated
+    }
+    
+    private func setupAuthStateListener() {
+        authStateListener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            Task { @MainActor in
+                guard let self = self else { return }
+                
+                if let user = user {
+                    do {
+                        let userModel = try await self.fetchUserProfile(uid: user.uid, email: user.email ?? "")
+                        self.currentUser = userModel
+                        self.authState = .authenticated(userModel)
+                    } catch {
+                        self.authState = .unauthenticated
+                    }
+                } else {
+                    self.currentUser = nil
+                    self.authState = .unauthenticated
                 }
             }
-        } else {
-            authState = .unauthenticated
         }
     }
     
-    private func validateEmail(_ email: String) throws {
-        let emailRegex = "^[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
-        let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
+    private func fetchUserProfile(uid: String, email: String) async throws -> UserModel {
+        let document = try await db.collection("users").document(uid).getDocument()
         
-        if !emailPredicate.evaluate(with: email) {
-            throw AuthenticationError.invalidEmail
+        guard let data = document.data() else {
+            throw AuthenticationError.userNotFound
         }
-    }
-    
-    private func validatePassword(_ password: String) throws {
-        if password.count < 8 {
-            throw AuthenticationError.weakPassword
-        }
-    }
-    
-    private func validateName(_ name: String) throws {
-        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            throw AuthenticationError.unknown("Name cannot be empty")
-        }
-    }
-    
-    private func performSignIn(email: String, password: String) async throws -> UserModel {
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-        
-        if email == "test@example.com" && password == "password123" {
-            return UserModel(
-                name: "Test User",
-                email: email,
-                countryRegion: "US"
-            )
-        } else {
-            throw AuthenticationError.invalidCredentials
-        }
-    }
-    
-    private func performRegistration(name: String, email: String, password: String, countryRegion: String) async throws -> UserModel {
-        try await Task.sleep(nanoseconds: 1_000_000_000)
         
         return UserModel(
-            name: name,
+            firebaseUID: uid,
+            name: data["name"] as? String ?? "",
             email: email,
-            countryRegion: countryRegion
+            countryRegion: data["countryRegion"] as? String ?? ""
         )
+    }
+    
+    private func createUserProfile(_ user: UserModel) async throws {
+        let userData: [String: Any] = [
+            "name": user.name,
+            "email": user.email,
+            "countryRegion": user.countryRegion,
+            "createdAt": FieldValue.serverTimestamp(),
+            "updatedAt": FieldValue.serverTimestamp(),
+        ]
+        
+        try await db.collection("users").document(user.firebaseUID!).setData(userData)
     }
 }
 

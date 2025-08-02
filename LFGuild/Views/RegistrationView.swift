@@ -81,7 +81,7 @@ struct RegistrationView: View {
                             isSecure: true,
                         )
                         
-                        VStack(alignment: .leading) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text("Country/Region")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -101,6 +101,16 @@ struct RegistrationView: View {
                             .background(Color(.systemGray6))
                             .cornerRadius(8)
                         }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Password Requirements:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text("• At least 8 characters")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
                     }
                     
                     if let errorMessage = errorMessage {
@@ -160,6 +170,11 @@ struct RegistrationView: View {
         
         guard password == confirmPassword else {
             errorMessage = "Passwords do not match"
+            return
+        }
+        
+        guard password.count >= 8 else {
+            errorMessage = "Password must be at least 8 characters"
             return
         }
         

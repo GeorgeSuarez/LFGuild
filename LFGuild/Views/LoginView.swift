@@ -14,6 +14,7 @@ struct LoginView: View {
     @State private var showPassword: Bool = false
     @State private var errorMessage: String?
     @State private var showRegistration = false
+    @State private var showForgotPassword = false
     @FocusState private var isEmailFocused: Bool
     @FocusState private var isPasswordFocused: Bool
     
@@ -81,6 +82,15 @@ struct LoginView: View {
                     }
                 }
                 
+                HStack {
+                    Spacer()
+                    Button("Forgot Password?") {
+                        showForgotPassword = true
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                }
+                
                 if let errorMessage = errorMessage {
                     Text(errorMessage)
                         .font(.caption)
@@ -110,7 +120,7 @@ struct LoginView: View {
                         .background(
                             isSignInDisabled ? Color.gray : Color.blue
                         )
-                        .cornerRadius(10)
+                        .cornerRadius(24)
                     }
                     .disabled(isSignInDisabled)
                     
@@ -137,6 +147,10 @@ struct LoginView: View {
         }
         .sheet(isPresented: $showRegistration) {
             RegistrationView()
+                .environmentObject(authManager)
+        }
+        .sheet(isPresented: $showForgotPassword) {
+            ForgotPasswordView()
                 .environmentObject(authManager)
         }
         .fullScreenCover(isPresented: .constant(isAuthenticated)) {

@@ -12,40 +12,89 @@ struct HomeView: View {
     @EnvironmentObject private var authManager: AuthenticationManager
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                Text("Welcome to LFGuild!")
-                    .font(.title)
-                    .fontWeight(.bold)
-                
-                Text("Hello, \(user.name)")
-                    .font(.headline)
-                
-                Text("Email: \(user.email)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                Text("Region: \(user.countryRegion)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-                
-                Button(action: {
-                    authManager.signOut()
-                }) {
-                    Text("Sign Out")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.red)
-                        .cornerRadius(10)
+        TabView {
+            NavigationView {
+                VStack(spacing: 20) {
+                    VStack(spacing: 16) {
+                        AsyncImage(url: URL(string: "https://via.placeholder.com/100")) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .overlay {
+                                    Text(String(user.name.prefix(1)))
+                                        .font(.largeTitle)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.blue)
+                                }
+                            
+                        }
+                        .frame(width: 100, height: 100)
+                        .clipShape(Circle())
+                        
+                        Text("Welcome, \(user.name)!")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        VStack(spacing: 8) {
+                            Text(user.email)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            Text(user.countryRegion)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    
+                    Spacer()
+                    
+                    VStack(spacing: 12) {
+                        Button("Find Guild") {
+                            // TODO: Navigate guilds
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        
+                        Button("Create Guild") {
+                            // TODO: Navigate to guild creation
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                    }
+                    
+                    Spacer()
                 }
                 .padding()
+                .navigationTitle("Dashboard")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Sign Out") {
+                            authManager.signOut()
+                        }
+                        .foregroundColor(.red)
+                    }
+                }
             }
-            .padding()
-            .navigationTitle("Dashboard")
+            .tabItem {
+                Image(systemName: "house")
+                Text("Home")
+            }
+            
+            NavigationView {
+                VStack {
+                    Text("Profile settings coming soon...")
+                        .foregroundColor(.secondary)
+                }
+                .navigationTitle("Profile")
+            }
+            .tabItem {
+                Image(systemName: "person")
+                Text("Profile")
+            }
         }
     }
 }
