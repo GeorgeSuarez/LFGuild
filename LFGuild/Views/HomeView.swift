@@ -10,20 +10,16 @@ import SwiftUI
 struct HomeView: View {
     let user: UserModel
     @EnvironmentObject private var authManager: AuthenticationManager
+    @State private var showingProfile = false
     
     var body: some View {
         TabView {
             NavigationView {
-                VStack(spacing: 20) {
-                   
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Your Guild Matches")
+                        .font(.headline)
+                        .fontWeight(.bold)
                     SwipeableCardsView()
-                    
-                    Button("Create Guild") {
-                        // TODO: Navigate to guild creation
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .padding(.bottom, 20)
                 }
                 .padding()
                 .navigationTitle("Dashboard")
@@ -40,13 +36,9 @@ struct HomeView: View {
                 Image(systemName: "house")
                 Text("Home")
             }
-            
-            NavigationView {
-                VStack {
-                    Text("Profile settings coming soon...")
-                        .foregroundColor(.secondary)
-                }
-                .navigationTitle("Profile")
+            NavigationStack {
+                ProfileView()
+                    .environmentObject(authManager)
             }
             .tabItem {
                 Image(systemName: "person")
@@ -58,4 +50,5 @@ struct HomeView: View {
 #Preview {
     let testUser = UserModel(name: "Test User", email: "test@example.com", countryRegion: "United States")
     HomeView(user: testUser)
+        .environmentObject(AuthenticationManager())
 }

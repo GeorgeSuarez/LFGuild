@@ -177,7 +177,7 @@ class AuthenticationManager: ObservableObject {
         var updatedUser = currentUser
         
         if let name = name {
-            updates["name]"] = name
+            updates["name"] = name
             updatedUser.name = name
         }
         
@@ -192,6 +192,30 @@ class AuthenticationManager: ObservableObject {
             try await db.collection("users").document(firebaseUser.uid).updateData(updates)
             self.currentUser = updatedUser
         }
+    }
+    
+    func changePassword(currentPassword: String, newPassword: String) async throws {
+        guard let firebaseUser = Auth.auth().currentUser,
+              let email = firebaseUser.email else {
+            throw AuthenticationError.userNotFound
+        }
+        
+        let credential = EmailAuthProvider.credential(withEmail: email, password: currentPassword)
+        try await firebaseUser.reauthenticate(with: credential)
+        
+        try await firebaseUser.updatePassword(to: newPassword)
+    }
+    
+    func changeEmail(newEmail: String, password: String) async throws {
+        guard let firebaseUser = Auth.auth().currentUser,
+              let currentEmail = firebaseUser.email else {
+            throw AuthenticationError.userNotFound
+        }
+        
+        let credential = EmailAuthProvider.credential(withEmail: currentEmail, password: password)
+        try await firebaseUser.reauthenticate(with: credential)
+        
+        try await firebaseUser.sendEmailVerification(beforeUpdatingEmail: newEmail)
     }
     
     func deleteAccount() async throws {
