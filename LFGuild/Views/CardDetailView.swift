@@ -10,6 +10,11 @@ import SwiftUI
 struct CardDetailView: View {
     let card: CardItem
     @Binding var isPresented: Bool
+    @EnvironmentObject private var authManager: AuthenticationManager
+    @StateObject private var messagingManager = MessagingManager()
+    @State private var showingMessageComposer = false
+    @State private var showingError = false
+    @State private var errorMessage = ""
     
     var body: some View {
         NavigationView {
@@ -128,15 +133,18 @@ struct CardDetailView: View {
                             }
                             
                             Button(action: {
-                                // TODO: Message Guild/Recruiter action
+                                showingMessageComposer = true
                             }) {
-                                Text("Message Guild/Recruiter")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 50)
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(12)
+                                HStack {
+                                    Image(systemName: "message.fill")
+                                    Text("Message Guild Leader")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(12)
                             }
                         }
                         .padding(.top, 20)
@@ -153,9 +161,23 @@ struct CardDetailView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showingMessageComposer) {
+                MessageGuildLeaderView(guildLeader: card.leader)
+                    .environmentObject(authManager)
+                    .environmentObject(messagingManager)
+            }
+            .alert("Error", isPresented: $showingError) {
+                Button("OK") { }
+            } message: {
+                Text(errorMessage)
+            }
         }
     }
 }
 
 #Preview {
+    let card = CardItem(imageURL: "", title: "Some Guild Name", description: "Some Guild Description", memberCount: 32, tags: ["Raiding", "Mythic +", "PvP", "Social"], requirements: "Purple Parses or 3k IO", leader: "John Pork")
+    CardDetailView(card: card, isPresented: .constant(true))
+        .environmentObject(AuthenticationManager())
+        .environmentObject(MessagingManager())
 }

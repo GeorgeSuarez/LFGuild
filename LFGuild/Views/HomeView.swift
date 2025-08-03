@@ -16,9 +16,6 @@ struct HomeView: View {
         TabView {
             NavigationView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("Your Guild Matches")
-                        .font(.headline)
-                        .fontWeight(.bold)
                     SwipeableCardsView()
                 }
                 .padding()
@@ -36,6 +33,16 @@ struct HomeView: View {
                 Image(systemName: "house")
                 Text("Home")
             }
+                
+            NavigationStack {
+                ConversationsView()
+                    .environmentObject(authManager)
+            }
+            .tabItem {
+                Image(systemName: "message")
+                Text("Messages")
+            }
+            
             NavigationStack {
                 ProfileView()
                     .environmentObject(authManager)

@@ -77,6 +77,12 @@ struct SwipeableCardsView: View {
                 }
                 .frame(height: 300)
             } else {
+                HStack(alignment: .top, spacing: 16) {
+                    Text("Discover")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                }
+                .padding()
                 ZStack {
                     ForEach(Array(cards.prefix(3).enumerated()), id: \.element) { index, card in
                         CardView(card: card) {
