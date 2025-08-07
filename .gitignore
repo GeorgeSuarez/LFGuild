@@ -1,9 +1,9 @@
+LFGuild/Views/BattleNetConfigurationView.swift
 build/
 Pods/
 *.plist
 *.log
 *.swp
-*.plist
 *.xcworkspace
 *.xcuserstate
 *.DS_Store

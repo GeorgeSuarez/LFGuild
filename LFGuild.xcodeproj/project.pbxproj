@@ -35,9 +35,22 @@
 		C5D6E2992E386BD100CC029C /* LFGuildUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LFGuildUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C51C5B7A2E4467F90005467F /* Exceptions for "LFGuild" folder in "LFGuild" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = C5D6E2812E386BD100CC029C /* LFGuild */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		C5D6E2842E386BD100CC029C /* LFGuild */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C51C5B7A2E4467F90005467F /* Exceptions for "LFGuild" folder in "LFGuild" target */,
+			);
 			path = LFGuild;
 			sourceTree = "<group>";
 		};
@@ -413,6 +426,7 @@
 				DEVELOPMENT_TEAM = BG3M9HK7C3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LFGuild/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -441,6 +455,7 @@
 				DEVELOPMENT_TEAM = BG3M9HK7C3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LFGuild/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
