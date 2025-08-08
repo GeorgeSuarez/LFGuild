@@ -38,11 +38,16 @@ struct ProfileView: View {
                     ChangeEmailView()
                         .environmentObject(authManager)
                 }
-            }
-            
-            Section("Danger Zone") {
+                
                 Button("Delete Account") {
                     viewModel.showingDeleteConfirmation = true
+                }
+                .foregroundColor(.red)
+            }
+            
+            Section {
+                Button("Sign Out") {
+                    authManager.signOut()
                 }
                 .foregroundColor(.red)
             }

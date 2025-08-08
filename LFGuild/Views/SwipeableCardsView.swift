@@ -97,7 +97,7 @@ struct SwipeableCardsView: View {
                         .fontWeight(.semibold)
                     Spacer()
                 }
-                .padding(.leading, 30)
+                .frame(maxWidth: 320)
                 
                 ZStack {
                     ForEach(Array(cards.prefix(3).enumerated()), id: \.element) { index, card in
