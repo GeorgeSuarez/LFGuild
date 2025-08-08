@@ -6,11 +6,15 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct HomeView: View {
-    let user: UserModel
+    @ObservedObject var user: UserModel
     @EnvironmentObject private var authManager: AuthenticationManager
     @State private var showingProfile = false
+    @State private var isRefreshing = false
+    
+    private let db = Firestore.firestore()
     
     var body: some View {
         TabView {
@@ -29,6 +33,9 @@ struct HomeView: View {
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
+                }
+                .refreshable {
+                    await refreshUserPreferences()
                 }
                 .navigationTitle("Your Dashboard")
                 .navigationBarTitleDisplayMode(.large)
@@ -57,9 +64,72 @@ struct HomeView: View {
             }
         }
     }
+    
+    private func refreshUserPreferences() async {
+        guard let currentUser = authManager.currentUser,
+              let firebaseUID = currentUser.firebaseUID else { return }
+        
+        isRefreshing = true
+        
+        do {
+            let document = try await db.collection("users").document(firebaseUID).getDocument()
+            
+            if let data = document.data(),
+               let preferencesData = data["preferences"] as? [String: Any] {
+                
+                await MainActor.run {
+                    // Load roles
+                    if let rolesArray = preferencesData["roles"] as? [String] {
+                        currentUser.roles = Set(rolesArray)
+                    }
+                    
+                    // Load available days
+                    if let daysArray = preferencesData["availableDays"] as? [String] {
+                        currentUser.availableDays = Set(daysArray)
+                    }
+                    
+                    // Load gaming tags
+                    if let tagsArray = preferencesData["gamingTags"] as? [String] {
+                        currentUser.gamingTags = Set(tagsArray)
+                    }
+                    
+                    // Load preferred realms
+                    if let realmsArray = preferencesData["preferredRealms"] as? [String] {
+                        currentUser.preferredRealms = Set(realmsArray)
+                    }
+                    
+                    // Load time preferences
+                    if let startTimeTimestamp = preferencesData["availableStartTime"] as? Timestamp {
+                        currentUser.availableStartTime = startTimeTimestamp.dateValue()
+                    }
+                    
+                    if let endTimeTimestamp = preferencesData["availableEndTime"] as? Timestamp {
+                        currentUser.availableEndTime = endTimeTimestamp.dateValue()
+                    }
+                    
+                    isRefreshing = false
+                }
+                
+                print("User preferences refreshed successfully")
+                
+            } else {
+                await MainActor.run {
+                    isRefreshing = false
+                }
+                print("No preferences data found during refresh")
+            }
+            
+        } catch {
+            print("Error refreshing user preferences: \(error.localizedDescription)")
+            await MainActor.run {
+                isRefreshing = false
+            }
+        }
+    }
 }
+
 struct WelcomeHeaderView: View {
-    let user: UserModel
+    @ObservedObject var user: UserModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -91,7 +161,7 @@ struct WelcomeHeaderView: View {
 }
 
 struct UserPreferencesCard: View {
-    let user: UserModel
+    @ObservedObject var user: UserModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
