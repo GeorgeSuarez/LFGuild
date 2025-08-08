@@ -19,7 +19,7 @@ struct HomeView: View {
                     SwipeableCardsView()
                 }
                 .padding()
-                .navigationTitle("Dashboard")
+                .navigationTitle("Your Dashboard")
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Sign Out") {

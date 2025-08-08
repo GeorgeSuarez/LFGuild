@@ -13,6 +13,11 @@ class UserModel: Identifiable, ObservableObject, Equatable {
     var name: String
     var email: String
     var countryRegion: String
+    var roles: Set<String> = []
+    var availableDays: Set<String> = []
+    var availableStartTime: Date?
+    var availableEndTime: Date?
+    var gamingTags: Set<String> = []
     
     init(id: UUID = UUID(), firebaseUID: String? = nil, name: String, email: String, countryRegion: String) {
         self.id = id

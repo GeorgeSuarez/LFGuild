@@ -42,9 +42,9 @@ struct RegistrationView: View {
                     
                     VStack(spacing: 16) {
                         CustomFormField(
-                            title: "Full Name",
+                            title: "Name",
                             text: $name,
-                            placeholder: "Enter your full name",
+                            placeholder: "Enter your name",
                             focused: $focusedField,
                             field: .name
                         )
@@ -194,4 +194,5 @@ struct RegistrationView: View {
 
 #Preview {
     RegistrationView()
+        .environmentObject(AuthenticationManager())
 }

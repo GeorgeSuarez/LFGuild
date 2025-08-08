@@ -10,6 +10,17 @@ import SwiftUI
 struct CardView: View {
     let card: CardItem
     let onTap: () -> Void
+    var dragOffset: CGSize = .zero
+    
+    private var likeOpacity: Double {
+        let threshold: CGFloat = 30
+        return dragOffset.width > threshold ? Double(min(1, (dragOffset.width - threshold) / 100)) : 0
+    }
+    
+    private var passOpacity: Double {
+        let threshold: CGFloat = -30
+        return dragOffset.width < threshold ? Double(min(1, abs(dragOffset.width + threshold) / 100 )) : 0
+    }
     
     var body: some View {
         VStack(spacing: 8) {
@@ -81,6 +92,75 @@ struct CardView: View {
         }
         .background(Color(.systemBackground))
         .cornerRadius(16)
+        .overlay(
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.green, lineWidth: 4)
+                    .opacity(likeOpacity)
+                
+                VStack {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "heart.circle.fill")
+                                .font(.system(size: 60))
+                                .foregroundColor(.green)
+                            Text("LIKE")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.green)
+                        }
+                        .padding(20)
+                        .background(
+                            Color.white.opacity(0.9)
+                                .cornerRadius(12)
+                        )
+                        .rotationEffect(.degrees(15))
+                        .opacity(likeOpacity)
+                        .scaleEffect(likeOpacity > 0 ? 1 : 0.8)
+                        .animation(.spring(response: 0.3), value: likeOpacity)
+                        Spacer()
+                    }
+                    .padding(.top, 40)
+                    Spacer()
+                }
+            }
+        )
+        .overlay(
+            // Pass indicator overlay
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.red, lineWidth: 4)
+                    .opacity(passOpacity)
+                
+                VStack {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 60))
+                                .foregroundColor(.red)
+                            Text("PASS")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.red)
+                        }
+                        .padding(20)
+                        .background(
+                            Color.white.opacity(0.9)
+                                .cornerRadius(12)
+                        )
+                        .rotationEffect(.degrees(-15))
+                        .opacity(passOpacity)
+                        .scaleEffect(passOpacity > 0 ? 1 : 0.8)
+                        .animation(.spring(response: 0.3), value: passOpacity)
+                        Spacer()
+                    }
+                    .padding(.top, 40)
+                    Spacer()
+                }
+            }
+        )
         .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
         .onTapGesture {
             onTap()

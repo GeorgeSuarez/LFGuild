@@ -77,30 +77,36 @@ struct SwipeableCardsView: View {
                 }
                 .frame(height: 300)
             } else {
-                HStack(alignment: .top, spacing: 16) {
+                HStack {
                     Text("Discover")
-                        .font(.title2)
+                        .font(.title)
                         .fontWeight(.semibold)
+                    Spacer()
                 }
-                .padding()
+                .padding(.leading, 30)
+                
                 ZStack {
                     ForEach(Array(cards.prefix(3).enumerated()), id: \.element) { index, card in
-                        CardView(card: card) {
-                            if index == 0 {
-                                selectedCard = card
-                                showingDetail = true
-                            }
-                        }
+                        CardView(
+                            card: card,
+                            onTap: {
+                                if index == 0 {
+                                    selectedCard = card
+                                    showingDetail = true
+                                }
+                            },
+                            dragOffset: index == 0 ? offset : .zero  // Pass offset only to top card
+                        )
                         .scaleEffect(1.0 - CGFloat(index) * 0.05)
                         .offset(y: CGFloat(index) * 6)
                         .opacity(index == 0 ? 1.0 : 0.6)
                         .zIndex(Double(cards.count - index))
                         .allowsHitTesting(index == 0)
+                        .offset(index == 0 ? offset : .zero)  // Apply offset only to top card
+                        .rotationEffect(index == 0 ? .degrees(Double(offset.width) * rotationMultiplier) : .zero)
                     }
                 }
                 .frame(maxWidth: 320, maxHeight: 400)
-                .offset(offset)
-                .rotationEffect(.degrees(Double(offset.width) * rotationMultiplier))
                 .gesture(
                     DragGesture()
                         .onChanged { value in
@@ -114,51 +120,6 @@ struct SwipeableCardsView: View {
                 )
                 
                 Spacer()
-                
-                HStack(spacing: 30) {
-                    VStack(spacing: 4) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.red)
-                        Text("Pass")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
-                    .opacity(offset.width < -30 ? 1.0 : 0.3)
-                    
-                    VStack(spacing: 4) {
-                        Image(systemName: "heart.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.green)
-                        Text("Like")
-                            .font(.caption2)
-                            .foregroundColor(.green)
-                    }
-                    .opacity(offset.width > 20 ? 1.0 : 0.3)
-                }
-                
-                
-                HStack(spacing: 25) {
-                    Button(action: { swipeCard(direction: .left ) }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.red)
-                            .frame(width: 40, height: 40)
-                            .background(Color(.systemBackground))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.1), radius: 3)
-                    }
-                    
-                    Button(action: { swipeCard(direction: .right) }) {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.green)
-                            .frame(width: 40, height: 40)
-                            .background(Color(.systemBackground))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.1), radius: 3)
-                    }
-                }
             }
         }
         .sheet(isPresented: $showingDetail) {
@@ -167,7 +128,6 @@ struct SwipeableCardsView: View {
             }
         }
     }
-    
     
     private func handleSwipeEnd(translation: CGSize) {
         let swipeDistance = abs(translation.width)

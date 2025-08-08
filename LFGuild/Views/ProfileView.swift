@@ -21,6 +21,11 @@ struct ProfileView: View {
                 ProfileInfoRow(title: "Name", value: viewModel.name)
                 ProfileInfoRow(title: "Email", value: viewModel.email)
                 ProfileInfoRow(title: "Country/Region", value: viewModel.countryRegion)
+                
+                NavigationLink("Preferences") {
+                    PreferencesView()
+                        .environmentObject(authManager)
+                }
             }
             
             Section("Account Actions") {
