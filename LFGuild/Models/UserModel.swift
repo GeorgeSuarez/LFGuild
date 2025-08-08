@@ -18,6 +18,7 @@ class UserModel: Identifiable, ObservableObject, Equatable {
     var availableStartTime: Date?
     var availableEndTime: Date?
     var gamingTags: Set<String> = []
+    var preferredRealms: Set<String> = []
     
     init(id: UUID = UUID(), firebaseUID: String? = nil, name: String, email: String, countryRegion: String) {
         self.id = id

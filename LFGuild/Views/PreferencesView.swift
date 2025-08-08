@@ -15,6 +15,7 @@ struct PreferencesView: View {
     @State private var availableStartTime = Date()
     @State private var availableEndTime = Date()
     @State private var selectedTags: Set<Tag> = []
+    @State private var selectedRealms: Set<WoWRealm> = []
     @State private var showingSaveAlert = false
     @State private var isSaving = false
     
@@ -108,6 +109,78 @@ struct PreferencesView: View {
                     }
                     .padding(.vertical, 8)
                 }
+                
+                Section(header: Text("Preferred WoW Realms")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Select your preferred realms for guild matching")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Menu {
+                            ForEach(WoWRealm.allCases, id: \.self) { realm in
+                                Button(action: {
+                                    if selectedRealms.contains(realm) {
+                                        selectedRealms.remove(realm)
+                                    } else {
+                                        selectedRealms.insert(realm)
+                                    }
+                                }) {
+                                    HStack {
+                                        Text("\(realm.name) (\(realm.region))")
+                                        Spacer()
+                                        if selectedRealms.contains(realm) {
+                                            Image(systemName: "checkmark")
+                                                .foregroundColor(.blue)
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Text(selectedRealms.isEmpty ? "Select Realms" : "\(selectedRealms.count) realm\(selectedRealms.count == 1 ? "" : "s") selected")
+                                    .foregroundColor(selectedRealms.isEmpty ? .secondary : .primary)
+                                Spacer()
+                                Image(systemName: "chevron.down")
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                        }
+                        
+                        if !selectedRealms.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Selected Realms:")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.secondary)
+                                
+                                FlowLayout(spacing: 6) {
+                                    ForEach(Array(selectedRealms), id: \.self) { realm in
+                                        HStack(spacing: 4) {
+                                            Text(realm.rawValue)
+                                                .font(.caption)
+                                            Button(action: {
+                                                selectedRealms.remove(realm)
+                                            }) {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.purple.opacity(0.1))
+                                        .foregroundColor(.purple)
+                                        .cornerRadius(12)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
             }
             .navigationTitle("Preferences")
             .navigationBarTitleDisplayMode(.inline)
@@ -146,6 +219,7 @@ struct PreferencesView: View {
             let rolesArray = Array(selectedRoles.map { $0.rawValue })
             let daysArray = Array(availableDays.map { $0.rawValue })
             let tagsArray = Array(selectedTags.map { $0.rawValue })
+            let realmsArray = Array(selectedRealms.map { $0.rawValue })
             
             // Create the preferences data dictionary
             let preferencesData: [String: Any] = [
@@ -154,6 +228,7 @@ struct PreferencesView: View {
                 "availableStartTime": Timestamp(date: availableStartTime),
                 "availableEndTime": Timestamp(date: availableEndTime),
                 "gamingTags": tagsArray,
+                "preferredRealms": realmsArray,
                 "updatedAt": Timestamp(date: Date())
             ]
             
@@ -168,6 +243,7 @@ struct PreferencesView: View {
             currentUser.availableStartTime = availableStartTime
             currentUser.availableEndTime = availableEndTime
             currentUser.gamingTags = Set(tagsArray)
+            currentUser.preferredRealms = Set(realmsArray)
             
             // Show success alert
             await MainActor.run {
@@ -216,6 +292,12 @@ struct PreferencesView: View {
                         currentUser.gamingTags = Set(tagsArray)
                     }
                     
+                    // Load preferred realms
+                    if let realmsArray = preferencesData["preferredRealms"] as? [String] {
+                        selectedRealms = Set(realmsArray.compactMap { WoWRealm(rawValue: $0) })
+                        currentUser.preferredRealms = Set(realmsArray)
+                    }
+                    
                     // Load time preferences
                     if let startTimeTimestamp = preferencesData["availableStartTime"] as? Timestamp {
                         availableStartTime = startTimeTimestamp.dateValue()
@@ -236,6 +318,7 @@ struct PreferencesView: View {
                     selectedRoles = Set(currentUser.roles.compactMap { Role(rawValue: $0) })
                     availableDays = Set(currentUser.availableDays.compactMap { Day(rawValue: $0) })
                     selectedTags = Set(currentUser.gamingTags.compactMap { Tag(rawValue: $0) })
+                    selectedRealms = Set(currentUser.preferredRealms.compactMap { WoWRealm(rawValue: $0) })
                     
                     if let startTime = currentUser.availableStartTime {
                         availableStartTime = startTime
@@ -256,6 +339,7 @@ struct PreferencesView: View {
                 selectedRoles = Set(currentUser.roles.compactMap { Role(rawValue: $0) })
                 availableDays = Set(currentUser.availableDays.compactMap { Day(rawValue: $0) })
                 selectedTags = Set(currentUser.gamingTags.compactMap { Tag(rawValue: $0) })
+                selectedRealms = Set(currentUser.preferredRealms.compactMap { WoWRealm(rawValue: $0) })
                 
                 if let startTime = currentUser.availableStartTime {
                     availableStartTime = startTime
@@ -265,6 +349,53 @@ struct PreferencesView: View {
                 }
             }
         }
+    }
+}
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat
+    
+    init(spacing: CGFloat = 8) {
+        self.spacing = spacing
+    }
+    
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        return layout(sizes: sizes, proposal: proposal).size
+    }
+    
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let offsets = layout(sizes: sizes, proposal: proposal).offsets
+        
+        for (subview, offset) in zip(subviews, offsets) {
+            subview.place(at: CGPoint(x: bounds.minX + offset.x, y: bounds.minY + offset.y), proposal: .unspecified)
+        }
+    }
+    
+    private func layout(sizes: [CGSize], proposal: ProposedViewSize) -> (offsets: [CGPoint], size: CGSize) {
+        let containerWidth = proposal.width ?? 300
+        var offsets: [CGPoint] = []
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        
+        for size in sizes {
+            if currentX + size.width > containerWidth && currentX > 0 {
+                currentY += rowHeight + spacing
+                totalHeight = currentY
+                currentX = 0
+                rowHeight = 0
+            }
+            
+            offsets.append(CGPoint(x: currentX, y: currentY))
+            currentX += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        
+        totalHeight = currentY + rowHeight
+        return (offsets, CGSize(width: containerWidth, height: totalHeight))
     }
 }
 
@@ -293,6 +424,40 @@ enum Tag: String, CaseIterable {
     case roleplay = "RP"
 }
 
+enum WoWRealm: String, CaseIterable {
+    case stormrage = "Stormrage - US"
+    case tichondrius = "Tichondrius - US"
+    case area52 = "Area-52 - US"
+    case malganis = "Mal'Ganis - US"
+    case dalaran = "Dalaran - US"
+    case illidan = "Illidan - US"
+    case kiljaeden = "Kil'jaeden - US"
+    case thrall = "Thrall - US"
+    case zuljin = "Zul'jin - US"
+    case emeraldDream = "Emerald Dream - US"
+    case proudmoore = "Proudmoore - US"
+    case sargeras = "Sargeras - US"
+    case frostmourne = "Frostmourne - US"
+    case barthilas = "Barthilas - US"
+    case ragnaros = "Ragnaros - EU"
+    case kazzak = "Kazzak - EU"
+    case draenor = "Draenor - EU"
+    case silvermoon = "Silvermoon - EU"
+    case tarrenMill = "Tarren Mill - EU"
+    case outland = "Outland - EU"
+    
+    var name: String {
+        let components = self.rawValue.components(separatedBy: " - ")
+        return components.first ?? self.rawValue
+    }
+    
+    var region: String {
+        let components = self.rawValue.components(separatedBy: " - ")
+        return components.last ?? "US"
+    }
+}
+
 #Preview {
     PreferencesView()
+        .environmentObject(AuthenticationManager())
 }

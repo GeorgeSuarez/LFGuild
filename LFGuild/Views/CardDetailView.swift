@@ -72,7 +72,7 @@ struct CardDetailView: View {
                                 .font(.headline)
                                 .fontWeight(.semibold)
                             
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
                                 ForEach(card.tags, id: \.self) { tag in
                                     Text(tag)
                                         .font(.caption)
