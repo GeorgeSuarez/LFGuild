@@ -55,6 +55,15 @@ struct HomeView: View {
             }
             
             NavigationStack {
+                GuildSearchView()
+                    .environmentObject(authManager)
+            }
+            .tabItem {
+                Image(systemName: "magnifyingglass")
+                Text("Search")
+            }
+            
+            NavigationStack {
                 ProfileView()
                     .environmentObject(authManager)
             }

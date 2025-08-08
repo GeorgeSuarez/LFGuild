@@ -72,11 +72,11 @@ struct LoginView: View {
                             }
                         }
                         .padding()
-                        .background(Color.blue.opacity(0.2))
+                        .background(Color(.blue).opacity(0.2))
                         .cornerRadius(24)
                         .padding()
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 24)
                                 .stroke(isPasswordFocused ? Color.blue : Color.clear, lineWidth: 2)
                         )
                     }
