@@ -15,41 +15,55 @@ struct SwipeableCardsView: View {
                  memberCount: 42,
                  tags: ["RPG", "Adventure", "Dungeons", "Fantasy"],
                  requirements: "Level 10+ characters preferred",
-                 leader: "DragonSlayer99"),
+                 leader: "DragonSlayer99",
+                 raidDays: ["Tuesday", "Thursday", "Sunday"],
+                 raidTime: "8:00 PM - 11:00 PM EST",
+                 serverRealm: "Stormrage - US"),
         CardItem(imageURL: "https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=Guild+2",
                  title: "Strategy Masters",
                  description: "Tactical gameplay and strategic thinking. Perfect for players who love chess-like challenges and complex battle formations.",
                  memberCount: 28,
                  tags: ["Strategy", "Tactics", "Competitive", "Chess"],
                  requirements: "Must pass strategy test",
-                 leader: "TacticalGenius"),
+                 leader: "TacticalGenius",
+                 raidDays: ["Monday", "Wednesday", "Friday"],
+                 raidTime: "7:30 PM - 10:30 PM PST",
+                 serverRealm: "Tichondrius - US"),
         CardItem(imageURL: "https://via.placeholder.com/400x300/45B7D1/FFFFFF?text=Guild+3",
                  title: "Casual Gamers",
                  description: "Relaxed gaming environment for those who want to have fun without the pressure. Family-friendly community.",
                  memberCount: 67,
                  tags: ["Casual", "Family", "Fun", "Relaxed"],
                  requirements: "Just be friendly!",
-                 leader: "ChillPlayer"),
+                 leader: "ChillPlayer",
+                 raidDays: ["Saturday"],
+                 raidTime: "2:00 PM - 5:00 PM CST",
+                 serverRealm: "Area-52 - US"),
         CardItem(imageURL: "https://via.placeholder.com/400x300/96CEB4/FFFFFF?text=Guild+4",
                  title: "Competitive Arena",
                  description: "High-stakes competitive gaming for serious players looking to climb the ranks and dominate tournaments.",
                  memberCount: 35,
                  tags: ["Competitive", "PvP", "Tournaments", "Pro"],
                  requirements: "Rank Gold or higher",
-                 leader: "ChampionMaster"),
+                 leader: "ChampionMaster",
+                 raidDays: ["Tuesday", "Wednesday", "Thursday"],
+                 raidTime: "9:00 PM - 12:00 AM EST",
+                 serverRealm: "Mal'Ganis - US"),
         CardItem(imageURL: "https://via.placeholder.com/400x300/FFEAA7/333333?text=Guild+5",
                  title: "Social Hub",
                  description: "Community-focused guild where friendships are formed and memories are made. Regular events and social activities.",
                  memberCount: 89,
                  tags: ["Social", "Events", "Community", "Friends"],
                  requirements: "Active participation required",
-                 leader: "SocialButterfly")
+                 leader: "SocialButterfly",
+                 raidDays: ["Friday", "Saturday"],
+                 raidTime: "6:00 PM - 9:00 PM MST",
+                 serverRealm: "Dalaran - US")
     ]
     
     @State private var offset = CGSize.zero
     @State private var isSwipeComplete = false
     @State private var selectedCard: CardItem?
-    @State private var showingDetail = false
     
     private let swipeThreshold: CGFloat = 100
     private let rotationMultiplier: CGFloat = 0.1
@@ -92,7 +106,6 @@ struct SwipeableCardsView: View {
                             onTap: {
                                 if index == 0 {
                                     selectedCard = card
-                                    showingDetail = true
                                 }
                             },
                             dragOffset: index == 0 ? offset : .zero  // Pass offset only to top card
@@ -122,10 +135,11 @@ struct SwipeableCardsView: View {
                 Spacer()
             }
         }
-        .sheet(isPresented: $showingDetail) {
-            if let selectedCard = selectedCard {
-                CardDetailView(card: selectedCard, isPresented: $showingDetail)
-            }
+        .sheet(item: $selectedCard) { card in
+            CardDetailView(card: card, isPresented: .init(
+                get: { selectedCard != nil },
+                set: { if !$0 { selectedCard = nil } }
+            ))
         }
     }
     
@@ -164,35 +178,50 @@ struct SwipeableCardsView: View {
                      memberCount: 42,
                      tags: ["RPG", "Adventure", "Dungeons", "Fantasy"],
                      requirements: "Level 10+ characters preferred",
-                     leader: "DragonSlayer99"),
+                     leader: "DragonSlayer99",
+                     raidDays: ["Tuesday", "Thursday", "Sunday"],
+                     raidTime: "8:00 PM - 11:00 PM EST",
+                     serverRealm: "Stormrage - US"),
             CardItem(imageURL: "https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=Guild+2",
                      title: "Strategy Masters",
                      description: "Tactical gameplay and strategic thinking. Perfect for players who love chess-like challenges and complex battle formations.",
                      memberCount: 28,
                      tags: ["Strategy", "Tactics", "Competitive", "Chess"],
                      requirements: "Must pass strategy test",
-                     leader: "TacticalGenius"),
+                     leader: "TacticalGenius",
+                     raidDays: ["Monday", "Wednesday", "Friday"],
+                     raidTime: "7:30 PM - 10:30 PM PST",
+                     serverRealm: "Tichondrius - US"),
             CardItem(imageURL: "https://via.placeholder.com/400x300/45B7D1/FFFFFF?text=Guild+3",
                      title: "Casual Gamers",
                      description: "Relaxed gaming environment for those who want to have fun without the pressure. Family-friendly community.",
                      memberCount: 67,
                      tags: ["Casual", "Family", "Fun", "Relaxed"],
                      requirements: "Just be friendly!",
-                     leader: "ChillPlayer"),
+                     leader: "ChillPlayer",
+                     raidDays: ["Saturday"],
+                     raidTime: "2:00 PM - 5:00 PM CST",
+                     serverRealm: "Area-52 - US"),
             CardItem(imageURL: "https://via.placeholder.com/400x300/96CEB4/FFFFFF?text=Guild+4",
                      title: "Competitive Arena",
                      description: "High-stakes competitive gaming for serious players looking to climb the ranks and dominate tournaments.",
                      memberCount: 35,
                      tags: ["Competitive", "PvP", "Tournaments", "Pro"],
                      requirements: "Rank Gold or higher",
-                     leader: "ChampionMaster"),
+                     leader: "ChampionMaster",
+                     raidDays: ["Tuesday", "Wednesday", "Thursday"],
+                     raidTime: "9:00 PM - 12:00 AM EST",
+                     serverRealm: "Mal'Ganis - US"),
             CardItem(imageURL: "https://via.placeholder.com/400x300/FFEAA7/333333?text=Guild+5",
                      title: "Social Hub",
                      description: "Community-focused guild where friendships are formed and memories are made. Regular events and social activities.",
                      memberCount: 89,
                      tags: ["Social", "Events", "Community", "Friends"],
                      requirements: "Active participation required",
-                     leader: "SocialButterfly")
+                     leader: "SocialButterfly",
+                     raidDays: ["Friday", "Saturday"],
+                     raidTime: "6:00 PM - 9:00 PM MST",
+                     serverRealm: "Dalaran - US")
         ]
     }
 }

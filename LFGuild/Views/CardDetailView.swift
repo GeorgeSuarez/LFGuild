@@ -110,6 +110,59 @@ struct CardDetailView: View {
                         }
                         
                         VStack(alignment: .leading, spacing: 8) {
+                            Text("Server / Realm")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            
+                            HStack {
+                                Image(systemName: "server.rack")
+                                    .foregroundColor(.blue)
+                                Text(card.serverRealm)
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                Spacer()
+                            }
+                        }
+                        
+                        if !card.raidDays.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Raid Schedule")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Image(systemName: "calendar")
+                                            .foregroundColor(.blue)
+                                        Text("Days:")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                        Text(card.raidDays.joined(separator: ", "))
+                                            .font(.subheadline)
+                                        Spacer()
+                                    }
+                                    
+                                    if !card.raidTime.isEmpty {
+                                        HStack {
+                                            Image(systemName: "clock")
+                                                .foregroundColor(.blue)
+                                            Text("Time:")
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                            Text(card.raidTime)
+                                                .font(.subheadline)
+                                            Spacer()
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(Color.blue.opacity(0.05))
+                                .cornerRadius(8)
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
                             Text("Requirements")
                                 .font(.headline)
                                 .fontWeight(.semibold)
@@ -176,7 +229,7 @@ struct CardDetailView: View {
 }
 
 #Preview {
-    let card = CardItem(imageURL: "", title: "Some Guild Name", description: "Some Guild Description", memberCount: 32, tags: ["Raiding", "Mythic +", "PvP", "Social"], requirements: "Purple Parses or 3k IO", leader: "John Pork")
+    let card = CardItem(imageURL: "", title: "Some Guild Name", description: "Some Guild Description", memberCount: 32, tags: ["Raiding", "Mythic +", "PvP", "Social"], requirements: "Purple Parses or 3k IO", leader: "John Pork", raidDays: ["Tuesday", "Thursday", "Sunday"], raidTime: "8:00 PM - 11:00 PM EST", serverRealm: "Stormrage - US")
     CardDetailView(card: card, isPresented: .constant(true))
         .environmentObject(AuthenticationManager())
         .environmentObject(MessagingManager())
