@@ -6,61 +6,65 @@
 //
 
 import Foundation
-import SwiftUI
 
-class KeychainManager {
-    private let service = "LFGuild"
+/// Stores the user's email in the Keychain for the "Remember Me" feature.
+/// Passwords are intentionally not persisted; Firebase Auth handles secure token storage.
+final class KeychainManager {
+    private let service: String
     private let emailKey = "user_email"
-    private let passwordKey = "user_password"
-    
-    struct Credentials {
-        let email: String
-        let password: String
+
+    init(service: String = "LFGuild") {
+        self.service = service
     }
-    
-    func store(email: String, password: String) throws {
-        let emailData = email.data(using: .utf8)!
-        let passwordData = password.data(using: .utf8)!
-        
-        let emailQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: emailKey,
-            kSecValueData as String: emailData
-        ]
-        
-        SecItemDelete(emailQuery as CFDictionary)
-        let emailStatus = SecItemAdd(emailQuery as CFDictionary, nil)
-        
-        let passwordQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: passwordKey,
-            kSecValueData as String: passwordData
-        ]
-        
-        SecItemDelete(passwordQuery as CFDictionary)
-        let passwordStatus = SecItemAdd(passwordQuery as CFDictionary, nil)
-        
-        guard emailStatus == errSecSuccess && passwordStatus == errSecSuccess else {
-            throw AuthenticationError.unknown("Failed to store credentials")
+
+    func store(email: String) throws {
+        guard let emailData = email.data(using: .utf8) else {
+            throw AuthenticationError.unknown("Failed to encode email")
         }
+
+        try store(data: emailData, forKey: emailKey)
     }
-    
-    func getCredentials() -> Credentials? {
-        guard let email = getString(for: emailKey),
-            let password = getString(for: passwordKey) else {
-            return nil
-        }
-        
-        return Credentials(email: email, password: password)
+
+    func getEmail() -> String? {
+        return getString(for: emailKey)
     }
-    
-    func deleteCrendentials() {
+
+    func deleteEmail() {
         deleteItem(for: emailKey)
-        deleteItem(for: passwordKey)
     }
-    
+
+    // MARK: - Private Helpers
+
+    private func store(data: Data, forKey key: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+
+        let status = SecItemAdd(query as CFDictionary, nil)
+
+        if status == errSecDuplicateItem {
+            // Item already exists — update it atomically instead of failing.
+            let updateQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: key
+            ]
+            let updateAttributes: [String: Any] = [
+                kSecValueData as String: data
+            ]
+            let updateStatus = SecItemUpdate(updateQuery as CFDictionary, updateAttributes as CFDictionary)
+            guard updateStatus == errSecSuccess else {
+                throw AuthenticationError.unknown("Failed to update keychain item: \(updateStatus)")
+            }
+        } else if status != errSecSuccess {
+            throw AuthenticationError.unknown("Failed to store keychain item: \(status)")
+        }
+    }
+
     private func getString(for key: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -69,10 +73,10 @@ class KeychainManager {
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
-        
+
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
+
         guard status == errSecSuccess,
               let data = result as? Data,
               let string = String(data: data, encoding: .utf8) else {
@@ -80,15 +84,14 @@ class KeychainManager {
         }
         return string
     }
-    
+
     private func deleteItem(for key: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key
         ]
-        
+
         SecItemDelete(query as CFDictionary)
     }
 }
-

@@ -11,20 +11,22 @@ import FirebaseFirestore
 struct HomeView: View {
     @ObservedObject var user: UserModel
     @EnvironmentObject private var authManager: AuthenticationManager
+    @EnvironmentObject private var notificationRouter: NotificationRouter
     @State private var showingProfile = false
     @State private var isRefreshing = false
-    
+    @State private var selectedTab: HomeTab = .home
+
     private let db = Firestore.firestore()
-    
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationView {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         WelcomeHeaderView(user: user)
-                        
+
                         UserPreferencesCard(user: user)
-                        
+
                         HStack {
                             Spacer()
                             SwipeableCardsView()
@@ -44,7 +46,8 @@ struct HomeView: View {
                 Image(systemName: "house")
                 Text("Home")
             }
-                
+            .tag(HomeTab.home)
+
             NavigationStack {
                 ConversationsView()
                     .environmentObject(authManager)
@@ -53,7 +56,8 @@ struct HomeView: View {
                 Image(systemName: "message")
                 Text("Messages")
             }
-            
+            .tag(HomeTab.messages)
+
             NavigationStack {
                 GuildSearchView()
                     .environmentObject(authManager)
@@ -62,7 +66,8 @@ struct HomeView: View {
                 Image(systemName: "magnifyingglass")
                 Text("Search")
             }
-            
+            .tag(HomeTab.search)
+
             NavigationStack {
                 ProfileView()
                     .environmentObject(authManager)
@@ -71,65 +76,59 @@ struct HomeView: View {
                 Image(systemName: "person")
                 Text("Profile")
             }
+            .tag(HomeTab.profile)
+        }
+        .onChange(of: notificationRouter.requestedTab) { _, newTab in
+            if let newTab = newTab {
+                selectedTab = newTab
+            }
         }
     }
     
     private func refreshUserPreferences() async {
         guard let currentUser = authManager.currentUser,
               let firebaseUID = currentUser.firebaseUID else { return }
-        
+
         isRefreshing = true
-        
+
         do {
-            let document = try await db.collection("users").document(firebaseUID).getDocument()
-            
-            if let data = document.data(),
-               let preferencesData = data["preferences"] as? [String: Any] {
-                
+            let document = try await db.collection("publicProfiles").document(firebaseUID).getDocument()
+
+            if let data = document.data() {
                 await MainActor.run {
-                    // Load roles
-                    if let rolesArray = preferencesData["roles"] as? [String] {
+                    if let rolesArray = data["roles"] as? [String] {
                         currentUser.roles = Set(rolesArray)
                     }
-                    
-                    // Load available days
-                    if let daysArray = preferencesData["availableDays"] as? [String] {
+
+                    if let daysArray = data["availableDays"] as? [String] {
                         currentUser.availableDays = Set(daysArray)
                     }
-                    
-                    // Load gaming tags
-                    if let tagsArray = preferencesData["gamingTags"] as? [String] {
+
+                    if let tagsArray = data["gamingTags"] as? [String] {
                         currentUser.gamingTags = Set(tagsArray)
                     }
-                    
-                    // Load preferred realms
-                    if let realmsArray = preferencesData["preferredRealms"] as? [String] {
+
+                    if let realmsArray = data["preferredRealms"] as? [String] {
                         currentUser.preferredRealms = Set(realmsArray)
                     }
-                    
-                    // Load time preferences
-                    if let startTimeTimestamp = preferencesData["availableStartTime"] as? Timestamp {
+
+                    if let startTimeTimestamp = data["availableStartTime"] as? Timestamp {
                         currentUser.availableStartTime = startTimeTimestamp.dateValue()
                     }
-                    
-                    if let endTimeTimestamp = preferencesData["availableEndTime"] as? Timestamp {
+
+                    if let endTimeTimestamp = data["availableEndTime"] as? Timestamp {
                         currentUser.availableEndTime = endTimeTimestamp.dateValue()
                     }
-                    
+
                     isRefreshing = false
                 }
-                
-                print("User preferences refreshed successfully")
-                
             } else {
                 await MainActor.run {
                     isRefreshing = false
                 }
-                print("No preferences data found during refresh")
             }
-            
+
         } catch {
-            print("Error refreshing user preferences: \(error.localizedDescription)")
             await MainActor.run {
                 isRefreshing = false
             }

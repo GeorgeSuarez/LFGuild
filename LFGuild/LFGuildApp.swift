@@ -10,6 +10,7 @@ import FirebaseCore
 
 @main
 struct LFGuildApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     
     init() {
         FirebaseApp.configure()
@@ -18,6 +19,7 @@ struct LFGuildApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(NotificationRouter.shared)
         }
     }
 }

@@ -29,22 +29,24 @@ struct ProfileView: View {
             }
             
             Section("Account Actions") {
-                NavigationLink("Change Password") {
-                    ChangePasswordView()
-                        .environmentObject(authManager)
+                if !isAnonymous {
+                    NavigationLink("Change Password") {
+                        ChangePasswordView()
+                            .environmentObject(authManager)
+                    }
+
+                    NavigationLink("Change Email") {
+                        ChangeEmailView()
+                            .environmentObject(authManager)
+                    }
                 }
-                
-                NavigationLink("Change Email") {
-                    ChangeEmailView()
-                        .environmentObject(authManager)
-                }
-                
+
                 Button("Delete Account") {
                     viewModel.showingDeleteConfirmation = true
                 }
                 .foregroundColor(.red)
             }
-            
+
             Section {
                 Button("Sign Out") {
                     authManager.signOut()
@@ -78,6 +80,10 @@ struct ProfileView: View {
         } message: {
             Text("Are you sure you want to delete your account? This action cannot be undone.")
         }
+    }
+
+    private var isAnonymous: Bool {
+        Auth.auth().currentUser?.isAnonymous == true
     }
 }
 

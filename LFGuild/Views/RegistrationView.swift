@@ -161,23 +161,28 @@ struct RegistrationView: View {
     }
     
     private var isRegisterDisabled: Bool {
-        name.isEmpty || email.isEmpty || password.isEmpty ||
+        name.isEmpty || !email.isValidEmail || password.isEmpty ||
         confirmPassword.isEmpty || authManager.authState == .loading
     }
-    
+
     private func handleRegistration() async {
         errorMessage = nil
-        
+
+        guard email.isValidEmail else {
+            errorMessage = "Please enter a valid email address"
+            return
+        }
+
         guard password == confirmPassword else {
             errorMessage = "Passwords do not match"
             return
         }
-        
+
         guard password.count >= 8 else {
             errorMessage = "Password must be at least 8 characters"
             return
         }
-        
+
         do {
             try await authManager.register(
                 name: name,

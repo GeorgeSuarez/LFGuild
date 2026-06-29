@@ -8,142 +8,37 @@
 import SwiftUI
 
 struct LoginView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @EnvironmentObject private var authManager: AuthenticationManager
+
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var showPassword: Bool = false
-    @State private var errorMessage: String?
     @State private var showRegistration = false
     @State private var showForgotPassword = false
-    @FocusState private var isEmailFocused: Bool
-    @FocusState private var isPasswordFocused: Bool
-    
+
+    @FocusState private var focusedField: Field?
+
+    private enum Field {
+        case email, password
+    }
+
     var body: some View {
-        NavigationView {
-            VStack(spacing: 24) {
-                VStack(spacing: 16) {
-                    Image("LFGuildLogo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 120, height: 120)
-                    
-                    Text("LFGuild")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 32) {
+                    header
+
+                    form
+
+                    actions
+
+                    Spacer(minLength: 24)
                 }
-                
-                VStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        
-                        TextField("Email", text: $email)
-                            .textFieldStyle(CustomTextFieldStyle())
-                            .keyboardType(.emailAddress)
-                            .textContentType(.emailAddress)
-                            .autocapitalization(.none)
-                            .focused($isEmailFocused)
-                            .onSubmit {
-                                isPasswordFocused = true
-                            }
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Group {
-                                if showPassword {
-                                    TextField("Password", text: $password)
-                                } else {
-                                    SecureField("Password",text: $password)
-                                }
-                            }
-                            .textContentType(.password)
-                            .focused($isPasswordFocused)
-                            .onSubmit {
-                                Task {
-                                    await handleSignIn()
-                                }
-                            }
-                            
-                            Button(action: {
-                                showPassword.toggle()
-                            }) {
-                                Image(systemName: showPassword ? "eye.slash" : "eye")
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding()
-                        .background(Color(.blue).opacity(0.2))
-                        .cornerRadius(24)
-                        .padding()
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 24)
-                                .stroke(isPasswordFocused ? Color.blue : Color.clear, lineWidth: 2)
-                        )
-                    }
-                }
-                
-                HStack {
-                    Spacer()
-                    Button("Forgot Password?") {
-                        showForgotPassword = true
-                    }
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                }
-                
-                if let errorMessage = errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .multilineTextAlignment(.center)
-                }
-                
-                VStack(spacing: 12) {
-                    Button(action: {
-                        Task {
-                            await handleSignIn()
-                        }
-                    }) {
-                        HStack {
-                            if case .loading = authManager.authState {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    .scaleEffect(0.8)
-                            }
-                            
-                            Text("Sign In")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(
-                            isSignInDisabled ? Color.gray : Color.blue
-                        )
-                        .cornerRadius(24)
-                    }
-                    .disabled(isSignInDisabled)
-                    
-                    Button(action: {
-                        showRegistration.toggle()
-                    }) {
-                        Text("Create Account")
-                            .font(.headline)
-                            .foregroundColor(.blue)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.clear)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24)
-                                    .stroke(Color.blue, lineWidth: 2)
-                            )
-                    }
-                }
-                
-                Spacer()
+                .padding(.horizontal, 24)
+                .padding(.top, 48)
+                .padding(.bottom, 24)
             }
-            .padding()
-            .navigationBarHidden(true)
+            .toolbarVisibility(.hidden, for: .navigationBar)
         }
         .sheet(isPresented: $showRegistration) {
             RegistrationView()
@@ -153,45 +48,184 @@ struct LoginView: View {
             ForgotPasswordView()
                 .environmentObject(authManager)
         }
-        .fullScreenCover(isPresented: .constant(isAuthenticated)) {
-            HomeView(user: authManager.currentUser!)
-                .environmentObject(authManager)
-        }
     }
-    
-    private var isSignInDisabled: Bool {
-        email.isEmpty || password.isEmpty || authManager.authState == .loading
-    }
-    
-    private var isAuthenticated: Bool {
-        if case .authenticated = authManager.authState {
-            return true
-        }
-        
-        return false
-    }
-    
-    private func handleSignIn() async {
-        errorMessage = nil
-        
-        do {
-            try await authManager.signIn(email: email, password: password)
-        } catch {
-            errorMessage = (error as? AuthenticationError)?.errorDescription ?? error.localizedDescription
-        }
-    }
-}
 
-struct CustomTextFieldStyle: TextFieldStyle {
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
-            .padding()
-            .background(Color.blue.opacity(0.2))
-            .cornerRadius(24)
-            .padding()
+    // MARK: - Subviews
+
+    private var header: some View {
+        VStack(spacing: 12) {
+            Image("LFGuildLogo")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 100, height: 100)
+                .clipShape(.rect(cornerRadius: 24))
+
+            Text("LFGuild")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundStyle(.primary)
+
+            Text("Find your perfect guild")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var form: some View {
+        VStack(spacing: 20) {
+            FormInputField(
+                title: "Email",
+                icon: "envelope",
+                isFocused: focusedField == .email
+            ) {
+                TextField("Enter your email", text: $email)
+                    .keyboardType(.emailAddress)
+                    .textContentType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focusedField, equals: .email)
+                    .onSubmit { focusedField = .password }
+            }
+
+            FormInputField(
+                title: "Password",
+                icon: "lock",
+                isSecure: true,
+                isSecureVisible: $showPassword,
+                isFocused: focusedField == .password
+            ) {
+                Group {
+                    if showPassword {
+                        TextField("Enter your password", text: $password)
+                    } else {
+                        SecureField("Enter your password", text: $password)
+                    }
+                }
+                .textContentType(.password)
+                .focused($focusedField, equals: .password)
+                .onSubmit { signIn() }
+            }
+
+            HStack {
+                Spacer()
+                Button("Forgot Password?") {
+                    showForgotPassword = true
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+
+            if let error = authManager.lastError {
+                Text(error.errorDescription ?? "An error occurred")
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 8)
+            }
+        }
+    }
+
+    private var actions: some View {
+        VStack(spacing: 16) {
+            Button(action: signIn) {
+                HStack(spacing: 8) {
+                    if case .loading = authManager.authState {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(0.8)
+                    }
+
+                    Text("Sign In")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .foregroundStyle(.white)
+                .background(isSignInDisabled ? Color.gray.opacity(0.5) : Color.blue)
+                .clipShape(.rect(cornerRadius: 16))
+            }
+            .disabled(isSignInDisabled)
+
+            HStack(spacing: 4) {
+                Text("Don't have an account?")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Button("Create one") {
+                    showRegistration = true
+                }
+                .font(.footnote)
+                .fontWeight(.semibold)
+                .foregroundStyle(.blue)
+            }
+
+            #if DEBUG
+            HStack(spacing: 16) {
+                Divider()
+                Text("or")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Divider()
+            }
+
+            Button(action: signInAnonymously) {
+                HStack(spacing: 8) {
+                    if case .loading = authManager.authState {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+
+                    Text("Continue as Guest")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .foregroundStyle(.primary)
+                .background(.gray.opacity(0.12))
+                .clipShape(.rect(cornerRadius: 16))
+            }
+            .disabled(authManager.authState == .loading)
+
+            Text("No account required. Perfect for testing!")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            #endif
+        }
+    }
+
+    // MARK: - Computed Properties
+
+    private var isSignInDisabled: Bool {
+        !email.isValidEmail || password.isEmpty || authManager.authState == .loading
+    }
+
+    // MARK: - Actions
+
+    private func signIn() {
+        Task {
+            do {
+                try await authManager.signIn(email: email, password: password)
+            } catch {
+                // Error is already stored in authManager.lastError
+            }
+        }
+    }
+
+    private func signInAnonymously() {
+        Task {
+            do {
+                try await authManager.signInAnonymously()
+            } catch {
+                // Error is already stored in authManager.lastError
+            }
+        }
     }
 }
 
 #Preview {
     LoginView()
+        .environmentObject(AuthenticationManager())
 }

@@ -20,8 +20,7 @@ class ChangeEmailViewModel: ObservableObject {
     var isFormValid: Bool {
         !newEmail.isEmpty &&
         !password.isEmpty &&
-        newEmail.contains("@") &&
-        newEmail.contains(".")
+        newEmail.isValidEmail
     }
     
     func changeEmail(authManager: AuthenticationManager) async {
