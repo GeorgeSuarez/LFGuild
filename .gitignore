@@ -1,7 +1,6 @@
-LFGuild/Views/BattleNetConfigurationView.swift
 build/
 Pods/
-*.plist
+GoogleService-Info.plist
 *.log
 *.swp
 *.xcworkspace
