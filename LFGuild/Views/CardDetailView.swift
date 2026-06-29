@@ -12,32 +12,22 @@ struct CardDetailView: View {
     @Binding var isPresented: Bool
     @EnvironmentObject private var authManager: AuthenticationManager
     @StateObject private var messagingManager = MessagingManager()
+    @StateObject private var guildManager = GuildManager()
     @State private var showingMessageComposer = false
+    @State private var showingApplicationSheet = false
     @State private var showingError = false
+    @State private var showingSuccess = false
+    @State private var showingVerificationPrompt = false
+    @State private var isSendingVerification = false
     @State private var errorMessage = ""
+    @State private var successMessage = ""
+    @State private var isLoading = false
     
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 20) {
-                    AsyncImage(url: URL(string: card.imageURL)) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .overlay {
-                                Image(systemName: "photo")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.gray)
-                            }
-                    }
-                    .frame(height: 250)
-                    .clipped()
-                    .cornerRadius(16)
-                    
-                    VStack(alignment: .leading, spacing: 16) {
+            VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 16) {
                         HStack {
                             Text(card.title)
                                 .font(.largeTitle)
@@ -54,6 +44,18 @@ struct CardDetailView: View {
                                         .fontWeight(.medium)
                                 }
                                 .foregroundColor(.blue)
+                            }
+                        }
+                        
+                        if card.matchScore > 0 {
+                            HStack {
+                                Image(systemName: "star.fill")
+                                    .foregroundColor(.yellow)
+                                Text("\(Int(card.matchScore * 100))% Match")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.yellow)
+                                Spacer()
                             }
                         }
                         
@@ -174,16 +176,24 @@ struct CardDetailView: View {
                         
                         VStack(spacing: 12) {
                             Button(action: {
-                                isPresented = false
+                                showingApplicationSheet = true
                             }) {
-                                Text("Request to Join")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 50)
-                                    .background(Color.blue)
-                                    .cornerRadius(12)
+                                HStack {
+                                    if isLoading {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                            .scaleEffect(0.8)
+                                    }
+                                    Text("Request to Join")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(Color.blue)
+                                .cornerRadius(12)
                             }
+                            .disabled(isLoading)
                             
                             Button(action: {
                                 showingMessageComposer = true
@@ -219,17 +229,156 @@ struct CardDetailView: View {
                     .environmentObject(authManager)
                     .environmentObject(messagingManager)
             }
+            .sheet(isPresented: $showingApplicationSheet) {
+                GuildApplicationSheet(
+                    guildName: card.title,
+                    onSubmit: submitApplication
+                )
+            }
             .alert("Error", isPresented: $showingError) {
                 Button("OK") { }
             } message: {
                 Text(errorMessage)
+            }
+            .alert("Success", isPresented: $showingSuccess) {
+                Button("OK") {
+                    isPresented = false
+                }
+            } message: {
+                Text(successMessage)
+            }
+            .alert("Verify Email", isPresented: $showingVerificationPrompt) {
+                Button("Cancel", role: .cancel) { }
+                Button("Send Verification Email") {
+                    Task {
+                        isSendingVerification = true
+                        do {
+                            try await authManager.sendEmailVerification()
+                            successMessage = "Verification email sent. Please check your inbox."
+                            showingSuccess = true
+                        } catch {
+                            errorMessage = error.localizedDescription
+                            showingError = true
+                        }
+                        isSendingVerification = false
+                    }
+                }
+                .disabled(isSendingVerification)
+            } message: {
+                Text("You need a verified email address to apply to guilds. Would you like us to send a verification email?")
+            }
+        }
+    }
+
+    private func submitApplication(message: String) {
+        guard let guildId = card.guildId,
+              let user = authManager.currentUser,
+              let userId = user.firebaseUID else {
+            errorMessage = "Unable to apply. Missing guild or user information."
+            showingError = true
+            return
+        }
+
+        isLoading = true
+
+        Task {
+            do {
+                try await guildManager.applyToGuild(
+                    guildId: guildId,
+                    userId: userId,
+                    userName: user.name,
+                    message: message
+                )
+
+                await MainActor.run {
+                    isLoading = false
+                    successMessage = "Your application to \(card.title) has been submitted!"
+                    showingSuccess = true
+                }
+            } catch GuildError.emailNotVerified {
+                await MainActor.run {
+                    isLoading = false
+                    showingVerificationPrompt = true
+                }
+            } catch let error as GuildError {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = "Failed to submit application: \(error.localizedDescription)"
+                    showingError = true
+                }
+            }
+        }
+    }
+}
+
+struct GuildApplicationSheet: View {
+    let guildName: String
+    let onSubmit: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var message = ""
+    @FocusState private var isFocused: Bool
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Apply to \(guildName)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Introduce yourself and tell the guild leader why you'd be a good fit.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                
+                TextEditor(text: $message)
+                    .focused($isFocused)
+                    .frame(minHeight: 150)
+                    .padding(8)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(.systemGray4), lineWidth: 1)
+                    )
+                
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Application")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Submit") {
+                        onSubmit(message)
+                        dismiss()
+                    }
+                    .disabled(message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .fontWeight(.semibold)
+                }
+            }
+            .onAppear {
+                isFocused = true
             }
         }
     }
 }
 
 #Preview {
-    let card = CardItem(imageURL: "", title: "Some Guild Name", description: "Some Guild Description", memberCount: 32, tags: ["Raiding", "Mythic +", "PvP", "Social"], requirements: "Purple Parses or 3k IO", leader: "John Pork", raidDays: ["Tuesday", "Thursday", "Sunday"], raidTime: "8:00 PM - 11:00 PM EST", serverRealm: "Stormrage - US")
+    let card = CardItem(title: "Some Guild Name", description: "Some Guild Description", memberCount: 32, tags: ["Raiding", "Mythic +", "PvP", "Social"], requirements: "Purple Parses or 3k IO", leader: "John Pork", raidDays: ["Tuesday", "Thursday", "Sunday"], raidTime: "8:00 PM - 11:00 PM EST", serverRealm: "Stormrage - US", guildId: "preview-guild-id")
     CardDetailView(card: card, isPresented: .constant(true))
         .environmentObject(AuthenticationManager())
         .environmentObject(MessagingManager())

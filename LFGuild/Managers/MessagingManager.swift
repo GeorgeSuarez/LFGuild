@@ -37,32 +37,32 @@ class MessagingManager: ObservableObject {
             .addSnapshotListener { [weak self] snapshot, error in
                 guard let self = self else { return }
                 
-                if let error = error {
+                if error != nil {
                     self.error = .loadFailed
                     return
                 }
-                
+
                 guard let documents = snapshot?.documents else { return }
-                
+
                 Task {
                     await self.processConversationDocuments(documents, currentUserId: currentUserId)
                 }
             }
-        
+
     }
-    
+
     func startListeningForMessages(conversationId: String, currentUserId: String) {
         messagesListener?.remove()
         currentMessages = []
-        
+
         messagesListener = db.collection("messages")
             .document(conversationId)
             .collection("messages")
             .order(by: "timestamp", descending: false)
             .addSnapshotListener { [weak self] snapshot, error in
                 guard let self = self else { return }
-                
-                if let error = error {
+
+                if error != nil {
                     self.error = .loadFailed
                     return
                 }
@@ -94,31 +94,39 @@ class MessagingManager: ObservableObject {
     func sendMessage(to recipientNickname: String, content: String, currentUser: UserModel) async throws {
         isLoading = true
         defer { isLoading = false }
-        
-        let recipientQuery = db.collection("users")
+
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else {
+            throw MessageError.sendFailed
+        }
+        guard trimmedContent.count <= 2000 else {
+            throw MessageError.sendFailed
+        }
+
+        let recipientQuery = db.collection("publicProfiles")
             .whereField("name", isEqualTo: recipientNickname)
             .limit(to: 1)
-        
+
         let recipientSnapshot = try await recipientQuery.getDocuments()
-        
+
         guard let recipientDoc = recipientSnapshot.documents.first else {
             throw MessageError.userNotFound
         }
-        
+
         let recipientId = recipientDoc.documentID
         let recipientData = recipientDoc.data()
         let recipientName = recipientData["name"] as? String ?? recipientNickname
-        
+
         guard let currentUserId = currentUser.firebaseUID else {
             throw MessageError.invalidReceipient
         }
-        
+
         let message = Message(
             senderId: currentUserId,
             senderName: currentUser.name,
             recipientName: recipientName,
             recipientId: recipientId,
-            content: content
+            content: trimmedContent
         )
         
         let conversationId = createConversationId(userId1: currentUserId, userId2: recipientId)
@@ -138,16 +146,24 @@ class MessagingManager: ObservableObject {
               let currentUserId = currentUser.firebaseUID else {
             throw MessageError.invalidReceipient
         }
-        
+
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else {
+            throw MessageError.sendFailed
+        }
+        guard trimmedContent.count <= 2000 else {
+            throw MessageError.sendFailed
+        }
+
         isLoading = true
         defer { isLoading = false }
-        
+
         let message = Message(
             senderId: currentUserId,
             senderName: currentUser.name,
             recipientName: recipient.name,
             recipientId: recipientId,
-            content: content
+            content: trimmedContent
         )
         
         let conversationId = createConversationId(userId1: currentUserId, userId2: recipientId)
@@ -286,7 +302,7 @@ class MessagingManager: ObservableObject {
             try await batch.commit()
             
         } catch {
-            print("Error marking messages as read: \(error)")
+            // Non-fatal; unread counts will retry on next snapshot.
         }
     }
     

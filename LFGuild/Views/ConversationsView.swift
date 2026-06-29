@@ -9,10 +9,11 @@ import SwiftUI
 
 struct ConversationsView: View {
     @EnvironmentObject private var authManager: AuthenticationManager
+    @EnvironmentObject private var notificationRouter: NotificationRouter
     @StateObject private var messagingManager = MessagingManager()
     @State private var showingNewMessage = false
     @State private var selectedConversation: Conversation?
-    
+
     var body: some View {
         VStack {
             if messagingManager.conversations.isEmpty {
@@ -72,9 +73,22 @@ struct ConversationsView: View {
                let userId = currentUser.firebaseUID {
                 messagingManager.startListeningForConversations(currentUserId: userId)
             }
+
+            presentRoutedConversationIfAvailable()
+        }
+        .onChange(of: messagingManager.conversations.count) { _, _ in
+            presentRoutedConversationIfAvailable()
         }
         .onDisappear {
             messagingManager.stopListening()
+        }
+    }
+
+    private func presentRoutedConversationIfAvailable() {
+        guard let conversationId = notificationRouter.consumeConversationId() else { return }
+
+        if let conversation = messagingManager.conversations.first(where: { $0.id == conversationId }) {
+            selectedConversation = conversation
         }
     }
 }

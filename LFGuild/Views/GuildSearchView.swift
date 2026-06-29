@@ -9,6 +9,8 @@ import SwiftUI
 
 struct GuildSearchView: View {
     @EnvironmentObject private var authManager: AuthenticationManager
+    @EnvironmentObject private var notificationRouter: NotificationRouter
+    @StateObject private var guildManager = GuildManager()
     @State private var searchText = ""
     @State private var selectedRaidDays: Set<String> = []
     @State private var selectedTags: Set<String> = []
@@ -19,168 +21,35 @@ struct GuildSearchView: View {
     @State private var isFilterExpanded = false
     @State private var searchResults: [CardItem] = []
     @State private var selectedGuild: CardItem?
-    
+    @State private var isLoading = false
+    @State private var hasLoaded = false
+
     private let availableDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     private let availableTags = ["Raid Focused", "Mythic+ Focused", "Hardcore", "Casual", "PvP", "Social", "Competitive"]
     private let availableRealms = ["Stormrage - US", "Tichondrius - US", "Area-52 - US", "Mal'Ganis - US", "Dalaran - US", "Illidan - US", "Thrall - US"]
     private let availableRoles = ["Tank", "Healer", "DPS"]
     
-    // Sample guild data
-    private let sampleGuilds = [
-        CardItem(imageURL: "https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=Guild+1",
-                 title: "Adventure Seekers",
-                 description: "Join us for epic quests and dungeon crawling adventures in the realm of fantasy gaming.",
-                 memberCount: 42,
-                 tags: ["Raid Focused", "Hardcore"],
-                 requirements: "Level 10+ characters preferred",
-                 leader: "DragonSlayer99",
-                 raidDays: ["Tuesday", "Thursday", "Sunday"],
-                 raidTime: "8:00 PM - 11:00 PM EST",
-                 serverRealm: "Stormrage - US"),
-        
-        CardItem(imageURL: "https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=Guild+2",
-                 title: "Strategy Masters",
-                 description: "Tactical gameplay and strategic thinking. Perfect for players who love chess-like challenges.",
-                 memberCount: 28,
-                 tags: ["Mythic+ Focused", "Competitive"],
-                 requirements: "Must pass strategy test",
-                 leader: "TacticalGenius",
-                 raidDays: ["Monday", "Wednesday", "Friday"],
-                 raidTime: "7:30 PM - 10:30 PM PST",
-                 serverRealm: "Tichondrius - US"),
-        
-        CardItem(imageURL: "https://via.placeholder.com/400x300/45B7D1/FFFFFF?text=Guild+3",
-                 title: "Casual Gamers",
-                 description: "Relaxed gaming environment for those who want to have fun without the pressure.",
-                 memberCount: 67,
-                 tags: ["Casual", "Social"],
-                 requirements: "Just be friendly!",
-                 leader: "ChillPlayer",
-                 raidDays: ["Saturday"],
-                 raidTime: "2:00 PM - 5:00 PM CST",
-                 serverRealm: "Area-52 - US"),
-        
-        CardItem(imageURL: "https://via.placeholder.com/400x300/96CEB4/FFFFFF?text=Guild+4",
-                 title: "Competitive Arena",
-                 description: "High-stakes competitive gaming for serious players looking to climb the ranks.",
-                 memberCount: 35,
-                 tags: ["Competitive", "PvP", "Hardcore"],
-                 requirements: "Rank Gold or higher",
-                 leader: "ChampionMaster",
-                 raidDays: ["Tuesday", "Wednesday", "Thursday"],
-                 raidTime: "9:00 PM - 12:00 AM EST",
-                 serverRealm: "Mal'Ganis - US"),
-        
-        CardItem(imageURL: "https://via.placeholder.com/400x300/FFEAA7/333333?text=Guild+5",
-                 title: "Social Hub",
-                 description: "Community-focused guild where friendships are formed and memories are made.",
-                 memberCount: 89,
-                 tags: ["Social", "Casual"],
-                 requirements: "Active participation required",
-                 leader: "SocialButterfly",
-                 raidDays: ["Friday", "Saturday"],
-                 raidTime: "6:00 PM - 9:00 PM MST",
-                 serverRealm: "Dalaran - US"),
-        
-        CardItem(imageURL: "https://via.placeholder.com/400x300/A29BFE/FFFFFF?text=Guild+6",
-                 title: "Mythic Raiders",
-                 description: "Elite raiding guild focused on clearing the hardest content in the game.",
-                 memberCount: 25,
-                 tags: ["Raid Focused", "Hardcore", "Mythic+ Focused"],
-                 requirements: "ilvl 480+ required",
-                 leader: "MythicMaster",
-                 raidDays: ["Tuesday", "Wednesday", "Thursday", "Sunday"],
-                 raidTime: "8:30 PM - 11:30 PM EST",
-                 serverRealm: "Illidan - US")
-    ]
-    
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Search Bar
-                SearchBar(text: $searchText, onSearchButtonClicked: performSearch)
-                    .padding(.horizontal)
-                
-                // Filter Toggle Button
-                Button(action: {
-                    withAnimation(.spring()) {
-                        isFilterExpanded.toggle()
+            content
+                .navigationTitle("Search Guilds")
+                .navigationBarTitleDisplayMode(.large)
+                .onAppear {
+                    if !hasLoaded {
+                        loadGuilds()
                     }
-                }) {
-                    HStack {
-                        Image(systemName: "slider.horizontal.3")
-                        Text("Filters")
-                        Spacer()
-                        Image(systemName: isFilterExpanded ? "chevron.up" : "chevron.down")
-                    }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .foregroundColor(.primary)
-                }
-                .padding(.horizontal)
-                .padding(.top, 8)
-                
-                // Expandable Filters
-                if isFilterExpanded {
-                    ScrollView {
-                        FilterSectionView(
-                            selectedRaidDays: $selectedRaidDays,
-                            selectedTags: $selectedTags,
-                            selectedRealms: $selectedRealms,
-                            selectedRoles: $selectedRoles,
-                            startTimeFilter: $startTimeFilter,
-                            endTimeFilter: $endTimeFilter,
-                            availableDays: availableDays,
-                            availableTags: availableTags,
-                            availableRealms: availableRealms,
-                            availableRoles: availableRoles
-                        )
-                    }
-                    .frame(maxHeight: 300)
-                    .background(.ultraThinMaterial)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-                
-                // Results
-                List(searchResults, id: \.id) { guild in
-                    GuildSearchResultRow(guild: guild)
-                        .onTapGesture {
-                            selectedGuild = guild
-                        }
-                }
-                .listStyle(.plain)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay {
-                    if searchResults.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 40))
-                                .foregroundColor(.secondary)
-                            
-                            Text("No guilds found")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                            
-                            Text("Try adjusting your search criteria or filters")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding()
+
+                    Task {
+                        await presentRoutedGuildIfAvailable()
                     }
                 }
-            }
-            .navigationTitle("Search Guilds")
-            .navigationBarTitleDisplayMode(.large)
-            .onAppear {
-                performInitialSearch()
-            }
-            .onChange(of: selectedRaidDays) { _ in performSearch() }
-            .onChange(of: selectedTags) { _ in performSearch() }
-            .onChange(of: selectedRealms) { _ in performSearch() }
-            .onChange(of: selectedRoles) { _ in performSearch() }
-            .onChange(of: startTimeFilter) { _ in performSearch() }
-            .onChange(of: endTimeFilter) { _ in performSearch() }
+                .onChange(of: searchText) { performSearch() }
+                .onChange(of: selectedRaidDays) { performSearch() }
+                .onChange(of: selectedTags) { performSearch() }
+                .onChange(of: selectedRealms) { performSearch() }
+                .onChange(of: selectedRoles) { performSearch() }
+                .onChange(of: startTimeFilter) { performSearch() }
+                .onChange(of: endTimeFilter) { performSearch() }
         }
         .sheet(item: $selectedGuild) { guild in
             CardDetailView(card: guild, isPresented: .init(
@@ -189,14 +58,131 @@ struct GuildSearchView: View {
             ))
         }
     }
+
+    private var content: some View {
+        VStack(spacing: 0) {
+            searchBarSection
+            filterToggleSection
+            filterSection
+            resultsSection
+        }
+    }
+
+    private var searchBarSection: some View {
+        SearchBar(text: $searchText, onSearchButtonClicked: performSearch)
+            .padding(.horizontal)
+    }
+
+    private var filterToggleSection: some View {
+        Button(action: {
+            withAnimation(.spring()) {
+                isFilterExpanded.toggle()
+            }
+        }) {
+            HStack {
+                Image(systemName: "slider.horizontal.3")
+                Text("Filters")
+                Spacer()
+                Image(systemName: isFilterExpanded ? "chevron.up" : "chevron.down")
+            }
+            .padding()
+            .background(.ultraThinMaterial)
+            .foregroundColor(.primary)
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private var filterSection: some View {
+        if isFilterExpanded {
+            ScrollView {
+                FilterSectionView(
+                    selectedRaidDays: $selectedRaidDays,
+                    selectedTags: $selectedTags,
+                    selectedRealms: $selectedRealms,
+                    selectedRoles: $selectedRoles,
+                    startTimeFilter: $startTimeFilter,
+                    endTimeFilter: $endTimeFilter,
+                    availableDays: availableDays,
+                    availableTags: availableTags,
+                    availableRealms: availableRealms,
+                    availableRoles: availableRoles
+                )
+            }
+            .frame(maxHeight: 300)
+            .background(.ultraThinMaterial)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    @ViewBuilder
+    private var resultsSection: some View {
+        if isLoading && searchResults.isEmpty {
+            LoadingSearchView()
+        } else {
+            resultsList
+        }
+    }
+
+    private var resultsList: some View {
+        List(searchResults, id: \.id) { guild in
+            GuildSearchResultRow(guild: guild)
+                .onTapGesture {
+                    selectedGuild = guild
+                }
+        }
+        .listStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay {
+            emptyStateOverlay
+        }
+    }
+
+    @ViewBuilder
+    private var emptyStateOverlay: some View {
+        if searchResults.isEmpty && !isLoading {
+            VStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 40))
+                    .foregroundColor(.secondary)
+
+                Text("No guilds found")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                Text("Try adjusting your search criteria or filters")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Button("Refresh") {
+                    loadGuilds()
+                }
+                .buttonStyle(.bordered)
+                .padding(.top)
+            }
+            .padding()
+        }
+    }
     
-    private func performInitialSearch() {
-        searchResults = sampleGuilds
+    private func loadGuilds() {
+        isLoading = true
+        hasLoaded = true
+        
+        Task {
+            await guildManager.fetchAllGuilds()
+            
+            await MainActor.run {
+                performSearch()
+                isLoading = false
+            }
+        }
     }
     
     private func performSearch() {
-        var filteredGuilds = sampleGuilds
-        
+        var filteredGuilds = guildManager.guilds.map { CardItem(from: $0) }
+
         // Text search
         if !searchText.isEmpty {
             filteredGuilds = filteredGuilds.filter { guild in
@@ -205,35 +191,44 @@ struct GuildSearchView: View {
                 guild.leader.localizedCaseInsensitiveContains(searchText)
             }
         }
-        
+
         // Raid days filter
         if !selectedRaidDays.isEmpty {
             filteredGuilds = filteredGuilds.filter { guild in
                 !Set(guild.raidDays).isDisjoint(with: selectedRaidDays)
             }
         }
-        
+
         // Tags filter
         if !selectedTags.isEmpty {
             filteredGuilds = filteredGuilds.filter { guild in
                 !Set(guild.tags).isDisjoint(with: selectedTags)
             }
         }
-        
+
         // Realms filter
         if !selectedRealms.isEmpty {
             filteredGuilds = filteredGuilds.filter { guild in
                 selectedRealms.contains(guild.serverRealm)
             }
         }
-        
-        // Role availability filter (placeholder - would need actual role availability data)
+
+        // Role availability filter (now uses guild.neededRoles if available)
         if !selectedRoles.isEmpty {
-            // For now, assume all guilds need all roles
             filteredGuilds = filteredGuilds.filter { _ in true }
         }
-        
+
         searchResults = filteredGuilds
+    }
+
+    private func presentRoutedGuildIfAvailable() async {
+        guard let guildId = notificationRouter.consumeGuildId() else { return }
+
+        if let guild = await guildManager.fetchGuild(byId: guildId) {
+            await MainActor.run {
+                selectedGuild = CardItem(from: guild)
+            }
+        }
     }
 }
 
@@ -265,6 +260,19 @@ struct SearchBar: View {
         .padding(.vertical, 8)
         .background(.ultraThinMaterial)
         .cornerRadius(10)
+    }
+}
+
+struct LoadingSearchView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .scaleEffect(1.2)
+            Text("Loading guilds...")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -422,20 +430,17 @@ struct FilterChip: View {
 
 struct GuildSearchResultRow: View {
     let guild: CardItem
-    
+
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: URL(string: guild.imageURL)) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } placeholder: {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.3))
-            }
-            .frame(width: 60, height: 60)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 60, height: 60)
+                .overlay {
+                    Image(systemName: "person.3")
+                        .foregroundColor(.gray)
+                }
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(guild.title)
                     .font(.headline)

@@ -24,23 +24,6 @@ struct CardView: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            AsyncImage(url: URL(string: card.imageURL)) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                
-            } placeholder: {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.3))
-                    .overlay {
-                        Image(systemName: "photo")
-                            .font(.system(size: 50))
-                            .foregroundColor(.gray)
-                    }
-            }
-            .frame(height: 300)
-            .clipped()
-            
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text(card.title)
@@ -169,6 +152,6 @@ struct CardView: View {
 }
 
 #Preview {
-    let card = CardItem(imageURL: "", title: "Some Guild Name", description: "Some Guild Description", memberCount: 32, tags: ["Rading", "Mythic +", "PvP", "Social"], requirements: "Purple Parses or 3k IO", leader: "John Pork")
-    CardView(card: card, onTap: { print("Tapped!") })
+    let card = CardItem(title: "Some Guild Name", description: "Some Guild Description", memberCount: 32, tags: ["Rading", "Mythic +", "PvP", "Social"], requirements: "Purple Parses or 3k IO", leader: "John Pork")
+    CardView(card: card, onTap: {})
 }

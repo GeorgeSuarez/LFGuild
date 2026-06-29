@@ -9,7 +9,6 @@ import Foundation
 
 struct CardItem: Identifiable, Hashable {
     let id = UUID()
-    var imageURL: String
     var title: String
     var description: String
     let memberCount: Int
@@ -19,9 +18,10 @@ struct CardItem: Identifiable, Hashable {
     let raidDays: [String]
     let raidTime: String
     let serverRealm: String
-    
-    init(imageURL: String, title: String, description: String, memberCount: Int, tags: [String], requirements: String, leader: String, raidDays: [String] = [], raidTime: String = "", serverRealm: String = "") {
-        self.imageURL = imageURL
+    let guildId: String?
+    let matchScore: Double
+
+    init(title: String, description: String, memberCount: Int, tags: [String], requirements: String, leader: String, raidDays: [String] = [], raidTime: String = "", serverRealm: String = "", guildId: String? = nil, matchScore: Double = 0) {
         self.title = title
         self.description = description
         self.memberCount = memberCount
@@ -31,6 +31,22 @@ struct CardItem: Identifiable, Hashable {
         self.raidDays = raidDays
         self.raidTime = raidTime
         self.serverRealm = serverRealm
+        self.guildId = guildId
+        self.matchScore = matchScore
+    }
+
+    init(from guild: GuildModel) {
+        self.title = guild.name
+        self.description = guild.description
+        self.memberCount = guild.memberCount
+        self.tags = guild.tags
+        self.requirements = guild.requirements
+        self.leader = guild.leaderName
+        self.raidDays = guild.raidDays
+        self.raidTime = guild.raidTimeDisplay
+        self.serverRealm = guild.serverRealm
+        self.guildId = guild.id
+        self.matchScore = guild.matchScore
     }
 }
 

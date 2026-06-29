@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAnonymous() {
+      return isAuthenticated() &&
+        request.auth.token.firebase.sign_in_provider == "anonymous";
+    }
+
+    function isVerifiedEmailUser() {
+      return isAuthenticated() &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.firebase.sign_in_provider == "password";
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isGuildLeader(guildId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/guilds/$(guildId)).data.leaderId == request.auth.uid;
+    }
+
+    function isGuildMember(guildId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/guilds/$(guildId)/members/$(request.auth.uid));
+    }
+
+    function isValidString(value, min, max) {
+      return value is string && value.size() >= min && value.size() <= max;
+    }
+
+    // Private user data (owner only).
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+        request.resource.data.keys().hasAll(["email", "countryRegion"]) &&
+        isValidString(request.resource.data.email, 3, 254) &&
+        isValidString(request.resource.data.countryRegion, 1, 100);
+
+      allow update: if isOwner(userId) &&
+        exists(/databases/$(database)/documents/users/$(userId)) &&
+        (!request.resource.data.keys().hasAny(["email"]) ||
+          isValidString(request.resource.data.email, 3, 254)) &&
+        (!request.resource.data.keys().hasAny(["countryRegion"]) ||
+          isValidString(request.resource.data.countryRegion, 1, 100));
+
+      allow delete: if isOwner(userId);
+    }
+
+    // Public profile data (readable by any authenticated user for matching/messaging).
+    match /publicProfiles/{userId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isOwner(userId) &&
+        request.resource.data.keys().hasAll(["name"]) &&
+        isValidString(request.resource.data.name, 1, 100);
+
+      allow update: if isOwner(userId) &&
+        (!request.resource.data.keys().hasAny(["name"]) ||
+          isValidString(request.resource.data.name, 1, 100));
+
+      allow delete: if isOwner(userId);
+    }
+
+    // Guilds collection
+    match /guilds/{guildId} {
+      // Anyone authenticated can read active guilds.
+      allow read: if isAuthenticated() && resource.data.isActive == true;
+
+      // Only verified email/password users can create guilds, and they must be the leader.
+      // Guild images are not supported; reject any document containing imageURL.
+      allow create: if isVerifiedEmailUser() &&
+        !isAnonymous() &&
+        request.resource.data.leaderId == request.auth.uid &&
+        request.resource.data.keys().hasAll(["name", "description", "leaderId", "leaderName", "serverRealm"]) &&
+        !request.resource.data.keys().hasAny(["imageURL"]);
+
+      // Only guild leader can update or delete.
+      allow update: if isGuildLeader(guildId) &&
+        !request.resource.data.keys().hasAny(["imageURL"]);
+      allow delete: if isGuildLeader(guildId);
+
+      // Guild members subcollection
+      match /members/{memberId} {
+        allow read: if isGuildMember(guildId) || isGuildLeader(guildId);
+        allow create: if isGuildLeader(guildId);
+        allow update: if isGuildLeader(guildId);
+        allow delete: if isGuildLeader(guildId);
+      }
+
+      // Guild applications subcollection
+      match /applications/{applicationId} {
+        allow read: if isGuildLeader(guildId) ||
+          (isAuthenticated() && resource.data.userId == request.auth.uid);
+        allow create: if isVerifiedEmailUser() &&
+          !isAnonymous() &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.status == "pending";
+        allow update: if isGuildLeader(guildId);
+        allow delete: if isGuildLeader(guildId);
+      }
+    }
+
+    // Messages collection
+    match /messages/{conversationId} {
+      // Allow read if user is a participant.
+      allow read: if isAuthenticated() &&
+        request.auth.uid in resource.data.participantIds;
+
+      // Allow create if user is a participant and conversation has exactly two participants.
+      allow create: if isAuthenticated() &&
+        request.auth.uid in request.resource.data.participantIds &&
+        request.resource.data.participantIds.size() == 2;
+
+      // Allow update if user is a participant (used for unread counts / last message metadata).
+      allow update: if isAuthenticated() &&
+        request.auth.uid in resource.data.participantIds;
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() &&
+          request.auth.uid in get(/databases/$(database)/documents/messages/$(conversationId)).data.participantIds;
+
+        // Only the sender can create a message as themselves.
+        allow create: if isAuthenticated() &&
+          request.auth.uid == request.resource.data.senderId &&
+          request.auth.uid in get(/databases/$(database)/documents/messages/$(conversationId)).data.participantIds &&
+          isValidString(request.resource.data.content, 1, 2000);
+
+        // Only the recipient can mark a message as read.
+        allow update: if isAuthenticated() &&
+          request.auth.uid == resource.data.recipientId;
+      }
+    }
+  }
+}
