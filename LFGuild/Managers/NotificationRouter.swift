@@ -21,7 +21,7 @@ final class NotificationRouter: ObservableObject {
     @Published private(set) var selectedConversationId: String?
     @Published private(set) var selectedGuildId: String?
 
-    private init() {}
+    init() {}
 
     func navigateToConversation(id: String) {
         requestedTab = .messages

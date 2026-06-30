@@ -96,4 +96,5 @@ struct ConversationsView: View {
 #Preview {
     ConversationsView()
         .environmentObject(AuthenticationManager())
+        .environmentObject(NotificationRouter())
 }

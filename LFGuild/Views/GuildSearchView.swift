@@ -505,4 +505,5 @@ struct GuildSearchResultRow: View {
 #Preview {
     GuildSearchView()
         .environmentObject(AuthenticationManager())
+        .environmentObject(NotificationRouter())
 }

@@ -333,6 +333,7 @@ struct PreferenceRowView: View {
     
     return HomeView(user: testUser)
         .environmentObject(AuthenticationManager())
+        .environmentObject(NotificationRouter())
         .onAppear {
             testUser.roles = ["DPS", "Healer"]
             testUser.availableDays = ["Monday", "Tuesday", "Friday"]
