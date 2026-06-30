@@ -106,7 +106,8 @@ class GuildManager: ObservableObject {
     func fetchMatchingGuilds(for user: UserModel) async -> [GuildModel] {
         isLoading = true
         defer { isLoading = false }
-        
+        error = nil
+
         do {
             var query: Query = db.collection("guilds")
                 .whereField("isActive", isEqualTo: true)
@@ -176,8 +177,52 @@ class GuildManager: ObservableObject {
         }
     }
     
+    // MARK: - Battle.net Enrichment
+
+    /// Fetches the guild's profile and roster from Battle.net and returns an enriched copy.
+    /// Only the GM and officers (rank <= 2) are included from the roster.
+    func enrichFromBattleNet(_ guild: GuildModel) async throws -> GuildModel {
+        let realmSlug = BattleNetAPIClient.realmSlug(from: guild.serverRealm)
+        let guildSlug = BattleNetAPIClient.guildSlug(from: guild.name)
+
+        async let profileTask = BattleNetAPIClient.shared.fetchGuildProfile(realmSlug: realmSlug, guildSlug: guildSlug)
+        async let rosterTask = BattleNetAPIClient.shared.fetchGuildRoster(realmSlug: realmSlug, guildSlug: guildSlug)
+
+        let (profile, roster) = try await (profileTask, rosterTask)
+
+        let officers = roster.members
+            .filter { $0.rank <= 2 }
+            .sorted { $0.rank < $1.rank }
+            .map {
+                BattleNetOfficer(
+                    name: $0.character.name,
+                    level: $0.character.level,
+                    playableClass: $0.character.playableClass.name,
+                    rank: $0.rank
+                )
+            }
+
+        var enriched = guild
+        enriched.battleNetGuildId = profile.id
+        enriched.faction = profile.faction.name
+        enriched.battleNetMemberCount = profile.memberCount
+        enriched.battleNetOfficers = officers
+        enriched.battleNetLastSyncedAt = Date()
+        return enriched
+    }
+
+    /// Refreshes Battle.net data for an existing guild and persists the update.
+    func refreshBattleNetData(for guildId: String) async throws -> GuildModel {
+        guard var guild = await fetchGuild(byId: guildId) else {
+            throw GuildError.notFound
+        }
+        guild = try await enrichFromBattleNet(guild)
+        try await updateGuild(guild)
+        return guild
+    }
+
     // MARK: - Guild Creation & Management
-    
+
     func createGuild(_ guild: GuildModel) async throws {
         guard let currentUser = Auth.auth().currentUser else {
             throw GuildError.unauthorized

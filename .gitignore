@@ -1,6 +1,7 @@
 build/
 Pods/
 GoogleService-Info.plist
+BattleNetSecrets.xcconfig
 *.log
 *.swp
 *.xcworkspace

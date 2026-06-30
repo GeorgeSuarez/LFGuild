@@ -23,6 +23,7 @@ struct GuildSearchView: View {
     @State private var selectedGuild: CardItem?
     @State private var isLoading = false
     @State private var hasLoaded = false
+    @State private var showingCreateGuild = false
 
     private let availableDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     private let availableTags = ["Raid Focused", "Mythic+ Focused", "Hardcore", "Casual", "PvP", "Social", "Competitive"]
@@ -50,12 +51,24 @@ struct GuildSearchView: View {
                 .onChange(of: selectedRoles) { performSearch() }
                 .onChange(of: startTimeFilter) { performSearch() }
                 .onChange(of: endTimeFilter) { performSearch() }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: { showingCreateGuild = true }) {
+                            Image(systemName: "plus")
+                        }
+                        .accessibilityLabel("Create Guild")
+                    }
+                }
         }
         .sheet(item: $selectedGuild) { guild in
             CardDetailView(card: guild, isPresented: .init(
                 get: { selectedGuild != nil },
                 set: { if !$0 { selectedGuild = nil } }
             ))
+        }
+        .sheet(isPresented: $showingCreateGuild) {
+            CreateGuildView()
+                .environmentObject(authManager)
         }
     }
 

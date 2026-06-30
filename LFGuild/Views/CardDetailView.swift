@@ -22,28 +22,50 @@ struct CardDetailView: View {
     @State private var errorMessage = ""
     @State private var successMessage = ""
     @State private var isLoading = false
-    
+    @State private var guild: GuildModel?
+    @State private var isRefreshingBattleNet = false
+    @State private var battleNetError: String?
+
     var body: some View {
         NavigationView {
             ScrollView {
             VStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 16) {
                         HStack {
-                            Text(card.title)
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(card.title)
+                                    .font(.largeTitle)
+                                    .fontWeight(.bold)
+
+                                if let faction = guild?.faction {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: factionIcon(faction))
+                                            .font(.caption)
+                                        Text(faction)
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                    }
+                                    .foregroundStyle(factionColor(faction))
+                                }
+                            }
+
                             Spacer()
-                            
+
                             VStack(alignment: .trailing) {
                                 HStack(spacing: 4) {
                                     Image(systemName: "person.2.fill")
                                         .font(.subheadline)
-                                    Text("\(card.memberCount) members")
+                                    Text("\(displayedMemberCount) members")
                                         .font(.subheadline)
                                         .fontWeight(.medium)
                                 }
-                                .foregroundColor(.blue)
+                                .foregroundStyle(.blue)
+
+                                if let lastSynced = guild?.battleNetLastSyncedAt {
+                                    Text("Synced \(lastSynced, formatter: dateFormatter)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                         
@@ -125,7 +147,40 @@ struct CardDetailView: View {
                                 Spacer()
                             }
                         }
-                        
+
+                        if let officers = guild?.battleNetOfficers, !officers.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Leadership")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(officers, id: \.self) { officer in
+                                        HStack {
+                                            Image(systemName: officer.isGuildMaster ? "crown.fill" : "shield.fill")
+                                                .foregroundStyle(officer.isGuildMaster ? .yellow : .orange)
+                                                .frame(width: 20)
+
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(officer.name)
+                                                    .font(.body)
+                                                    .fontWeight(.medium)
+                                                Text("\(officer.displayTitle) · Lv. \(officer.level) \(officer.playableClass)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+
+                                            Spacer()
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(Color.blue.opacity(0.05))
+                                .clipShape(.rect(cornerRadius: 8))
+                            }
+                        }
+
                         if !card.raidDays.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Raid Schedule")
@@ -218,11 +273,28 @@ struct CardDetailView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("Done") {
                         isPresented = false
                     }
                 }
+
+                if isCurrentUserLeader {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: refreshBattleNet) {
+                            if isRefreshingBattleNet {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                        }
+                        .disabled(isRefreshingBattleNet)
+                        .accessibilityLabel("Refresh Battle.net data")
+                    }
+                }
+            }
+            .task {
+                await loadGuild()
             }
             .sheet(isPresented: $showingMessageComposer) {
                 MessageGuildLeaderView(guildLeader: card.leader)
@@ -314,6 +386,73 @@ struct CardDetailView: View {
                 }
             }
         }
+    }
+
+    private var isCurrentUserLeader: Bool {
+        guard let currentUserId = authManager.currentUser?.firebaseUID,
+              let leaderId = guild?.leaderId else { return false }
+        return currentUserId == leaderId
+    }
+
+    private var displayedMemberCount: Int {
+        guild?.battleNetMemberCount ?? card.memberCount
+    }
+
+    private func loadGuild() async {
+        guard let guildId = card.guildId else { return }
+        guild = await guildManager.fetchGuild(byId: guildId)
+    }
+
+    private func refreshBattleNet() {
+        guard let guildId = card.guildId else { return }
+        isRefreshingBattleNet = true
+        battleNetError = nil
+
+        Task {
+            do {
+                let updated = try await guildManager.refreshBattleNetData(for: guildId)
+                await MainActor.run {
+                    guild = updated
+                    isRefreshingBattleNet = false
+                }
+            } catch {
+                await MainActor.run {
+                    isRefreshingBattleNet = false
+                    battleNetError = error.localizedDescription
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
+            }
+        }
+    }
+
+    private func factionColor(_ faction: String) -> Color {
+        switch faction.lowercased() {
+        case "alliance":
+            return .blue
+        case "horde":
+            return .red
+        default:
+            return .primary
+        }
+    }
+
+    private func factionIcon(_ faction: String) -> String {
+        switch faction.lowercased() {
+        case "alliance":
+            return "a.circle.fill"
+        case "horde":
+            return "h.circle.fill"
+        default:
+            return "flag.fill"
+        }
+    }
+
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
     }
 }
 

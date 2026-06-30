@@ -27,7 +27,14 @@ struct GuildModel: Identifiable, Codable, Hashable {
     var neededRoles: [String]
     var createdAt: Date?
     var updatedAt: Date?
-    
+
+    // Battle.net enrichment
+    var battleNetGuildId: Int?
+    var faction: String?
+    var battleNetMemberCount: Int?
+    var battleNetOfficers: [BattleNetOfficer]?
+    var battleNetLastSyncedAt: Date?
+
     init(
         id: String? = nil,
         name: String,
@@ -47,7 +54,12 @@ struct GuildModel: Identifiable, Codable, Hashable {
         neededRoles: [String] = ["Tank", "Healer", "DPS"],
         matchScore: Double = 0.0,
         createdAt: Date? = nil,
-        updatedAt: Date? = nil
+        updatedAt: Date? = nil,
+        battleNetGuildId: Int? = nil,
+        faction: String? = nil,
+        battleNetMemberCount: Int? = nil,
+        battleNetOfficers: [BattleNetOfficer]? = nil,
+        battleNetLastSyncedAt: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -68,6 +80,11 @@ struct GuildModel: Identifiable, Codable, Hashable {
         self.matchScore = matchScore
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.battleNetGuildId = battleNetGuildId
+        self.faction = faction
+        self.battleNetMemberCount = battleNetMemberCount
+        self.battleNetOfficers = battleNetOfficers
+        self.battleNetLastSyncedAt = battleNetLastSyncedAt
     }
     
     var raidTimeDisplay: String {
@@ -80,8 +97,23 @@ struct GuildModel: Identifiable, Codable, Hashable {
     var isFull: Bool {
         memberCount >= maxMembers
     }
-    
+
     var matchScore: Double = 0.0
+}
+
+struct BattleNetOfficer: Codable, Hashable {
+    let name: String
+    let level: Int
+    let playableClass: String
+    let rank: Int
+
+    var isGuildMaster: Bool {
+        rank == 0
+    }
+
+    var displayTitle: String {
+        isGuildMaster ? "Guild Master" : "Officer"
+    }
 }
 
 struct GuildMember: Identifiable, Codable {
