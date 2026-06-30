@@ -19,6 +19,7 @@ struct RegistrationView: View {
     @State private var countryRegion: String = "United States"
     @State private var errorMessage: String?
     @State private var showPassword: Bool = false
+    @State private var showVerificationAlert = false
     @FocusState private var focusedField: RegistrationField?
     
     enum RegistrationField {
@@ -157,9 +158,16 @@ struct RegistrationView: View {
                     }
                 }
             }
+            .alert("Verify Your Email", isPresented: $showVerificationAlert) {
+                Button("OK") {
+                    dismiss()
+                }
+            } message: {
+                Text("A verification email has been sent to \(email). Please check your inbox and tap the link to verify your account before creating a guild or applying to one.")
+            }
         }
     }
-    
+
     private var isRegisterDisabled: Bool {
         name.isEmpty || !email.isValidEmail || password.isEmpty ||
         confirmPassword.isEmpty || authManager.authState == .loading
@@ -190,7 +198,7 @@ struct RegistrationView: View {
                 password: password,
                 countryRegion: countryRegion
             )
-            dismiss()
+            showVerificationAlert = true
         } catch {
             errorMessage = (error as? AuthenticationError)?.errorDescription ?? error.localizedDescription
         }
