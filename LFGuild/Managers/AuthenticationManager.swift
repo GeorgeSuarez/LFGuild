@@ -99,6 +99,8 @@ class AuthenticationManager: ObservableObject {
     @Published var authState: AuthenticationState = .idle
     @Published var currentUser: UserModel?
     @Published var lastError: AuthenticationError?
+    @Published var isEmailVerified: Bool = false
+    @Published var verificationEmailSent: Bool = false
 
     var isProfileComplete: Bool {
         guard let user = currentUser else { return false }
@@ -134,6 +136,8 @@ class AuthenticationManager: ObservableObject {
             let user = try await fetchUserProfile(uid: result.user.uid, email: email)
 
             currentUser = user
+            isEmailVerified = result.user.isEmailVerified
+            verificationEmailSent = false
             authState = .authenticated(user)
 
             AnalyticsManager.shared.logUserSignedIn(userId: result.user.uid)
@@ -159,6 +163,8 @@ class AuthenticationManager: ObservableObject {
         do {
             try Auth.auth().signOut()
             currentUser = nil
+            isEmailVerified = false
+            verificationEmailSent = false
             authState = .unauthenticated
         } catch {
             // Best-effort sign out; rely on auth state listener to update UI.
@@ -179,8 +185,11 @@ class AuthenticationManager: ObservableObject {
             )
 
             try await createUserProfile(userModel)
+            try await result.user.sendEmailVerification()
 
             currentUser = userModel
+            isEmailVerified = false
+            verificationEmailSent = true
             authState = .authenticated(userModel)
 
             AnalyticsManager.shared.logUserRegistered(userId: result.user.uid)
@@ -219,6 +228,8 @@ class AuthenticationManager: ObservableObject {
             }
 
             currentUser = userModel
+            isEmailVerified = false
+            verificationEmailSent = false
             authState = .authenticated(userModel)
 
         } catch {
@@ -243,6 +254,23 @@ class AuthenticationManager: ObservableObject {
         }
         do {
             try await user.sendEmailVerification()
+            verificationEmailSent = true
+        } catch {
+            throw AuthenticationError.from(error)
+        }
+    }
+
+    /// Reloads the current Firebase user and updates the published verification state.
+    func reloadEmailVerificationStatus() async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthenticationError.userNotFound
+        }
+        do {
+            try await user.reload()
+            isEmailVerified = user.isEmailVerified
+            if isEmailVerified {
+                verificationEmailSent = false
+            }
         } catch {
             throw AuthenticationError.from(error)
         }
@@ -395,12 +423,15 @@ class AuthenticationManager: ObservableObject {
                     do {
                         let userModel = try await self.fetchUserProfile(uid: user.uid, email: user.email ?? "")
                         self.currentUser = userModel
+                        self.isEmailVerified = user.isEmailVerified
                         self.authState = .authenticated(userModel)
                     } catch {
                         self.authState = .unauthenticated
                     }
                 } else {
                     self.currentUser = nil
+                    self.isEmailVerified = false
+                    self.verificationEmailSent = false
                     self.authState = .unauthenticated
                 }
             }
