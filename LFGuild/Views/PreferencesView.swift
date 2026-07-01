@@ -11,6 +11,7 @@ import FirebaseFirestore
 struct PreferencesView: View {
     @EnvironmentObject private var authManager: AuthenticationManager
     @State private var selectedRoles: Set<Role> = []
+    @State private var selectedSpecializations: Set<Specialization> = []
     @State private var availableDays: Set<Day> = []
     @State private var availableStartTime = Date()
     @State private var availableEndTime = Date()
@@ -47,12 +48,66 @@ struct PreferencesView: View {
                     }
                 }
                 
+                Section(header: Text("Specializations")) {
+                    if selectedRoles.isEmpty {
+                        Text("Select one or more roles above to choose specializations.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 16) {
+                            ForEach(selectedRoles.sorted { Role.allCases.firstIndex(of: $0)! < Role.allCases.firstIndex(of: $1)! }, id: \.self) { role in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(role.rawValue)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+
+                                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                                        ForEach(Specialization.allCases.filter { $0.role == role }, id: \.self) { specialization in
+                                            Button(action: {
+                                                if selectedSpecializations.contains(specialization) {
+                                                    selectedSpecializations.remove(specialization)
+                                                } else {
+                                                    selectedSpecializations.insert(specialization)
+                                                }
+                                            }) {
+                                                HStack {
+                                                    Text(specialization.rawValue)
+                                                        .font(.caption)
+                                                    Spacer()
+                                                    if selectedSpecializations.contains(specialization) {
+                                                        Image(systemName: "checkmark")
+                                                            .foregroundColor(specialization.roleColor)
+                                                    }
+                                                }
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(
+                                                    selectedSpecializations.contains(specialization)
+                                                        ? specialization.roleColor.opacity(0.15)
+                                                        : Color.gray.opacity(0.2)
+                                                )
+                                                .foregroundColor(
+                                                    selectedSpecializations.contains(specialization)
+                                                        ? specialization.roleColor
+                                                        : .primary
+                                                )
+                                                .cornerRadius(16)
+                                            }
+                                            .buttonStyle(PlainButtonStyle())
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Section(header: Text("Raid Availability")) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Available Days")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                        
+
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
                             ForEach(Day.allCases, id: \.self) { day in
                                 Button(action: {
@@ -212,6 +267,9 @@ struct PreferencesView: View {
             } message: {
                 Text(errorMessage)
             }
+            .onChange(of: selectedRoles) { _, newRoles in
+                selectedSpecializations = selectedSpecializations.filter { newRoles.contains($0.role) }
+            }
         }
     }
 
@@ -223,6 +281,7 @@ struct PreferencesView: View {
 
         do {
             let rolesArray = Array(selectedRoles.map { $0.rawValue })
+            let specializationsArray = Array(selectedSpecializations.map { $0.rawValue })
             let daysArray = Array(availableDays.map { $0.rawValue })
             let tagsArray = Array(selectedTags.map { $0.rawValue })
             let realmsArray = Array(selectedRealms.map { $0.rawValue })
@@ -230,6 +289,7 @@ struct PreferencesView: View {
             let publicProfileData: [String: Any] = [
                 "name": currentUser.name,
                 "roles": rolesArray,
+                "specializations": specializationsArray,
                 "availableDays": daysArray,
                 "availableStartTime": Timestamp(date: availableStartTime),
                 "availableEndTime": Timestamp(date: availableEndTime),
@@ -244,6 +304,7 @@ struct PreferencesView: View {
             )
 
             currentUser.roles = Set(rolesArray)
+            currentUser.specializations = Set(specializationsArray)
             currentUser.availableDays = Set(daysArray)
             currentUser.availableStartTime = availableStartTime
             currentUser.availableEndTime = availableEndTime
@@ -278,6 +339,11 @@ struct PreferencesView: View {
                         currentUser.roles = Set(rolesArray)
                     }
 
+                    if let specializationsArray = data["specializations"] as? [String] {
+                        selectedSpecializations = Set(specializationsArray.compactMap { Specialization(rawValue: $0) })
+                        currentUser.specializations = Set(specializationsArray)
+                    }
+
                     if let daysArray = data["availableDays"] as? [String] {
                         availableDays = Set(daysArray.compactMap { Day(rawValue: $0) })
                         currentUser.availableDays = Set(daysArray)
@@ -306,6 +372,7 @@ struct PreferencesView: View {
             } else {
                 await MainActor.run {
                     selectedRoles = Set(currentUser.roles.compactMap { Role(rawValue: $0) })
+                    selectedSpecializations = Set(currentUser.specializations.compactMap { Specialization(rawValue: $0) })
                     availableDays = Set(currentUser.availableDays.compactMap { Day(rawValue: $0) })
                     selectedTags = Set(currentUser.gamingTags.compactMap { Tag(rawValue: $0) })
                     selectedRealms = Set(currentUser.preferredRealms.compactMap { WoWRealm(rawValue: $0) })
@@ -322,6 +389,7 @@ struct PreferencesView: View {
         } catch {
             await MainActor.run {
                 selectedRoles = Set(currentUser.roles.compactMap { Role(rawValue: $0) })
+                selectedSpecializations = Set(currentUser.specializations.compactMap { Specialization(rawValue: $0) })
                 availableDays = Set(currentUser.availableDays.compactMap { Day(rawValue: $0) })
                 selectedTags = Set(currentUser.gamingTags.compactMap { Tag(rawValue: $0) })
                 selectedRealms = Set(currentUser.preferredRealms.compactMap { WoWRealm(rawValue: $0) })

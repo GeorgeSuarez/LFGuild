@@ -67,6 +67,10 @@ struct HomeView: View {
                         currentUser.roles = Set(rolesArray)
                     }
 
+                    if let specializationsArray = data["specializations"] as? [String] {
+                        currentUser.specializations = Set(specializationsArray)
+                    }
+
                     if let daysArray = data["availableDays"] as? [String] {
                         currentUser.availableDays = Set(daysArray)
                     }

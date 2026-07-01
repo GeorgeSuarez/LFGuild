@@ -13,6 +13,82 @@ enum Role: String, CaseIterable {
     case tank = "Tank"
 }
 
+enum Specialization: String, CaseIterable {
+    // Death Knight
+    case bloodDeathKnight = "Blood Death Knight"
+    case frostDeathKnight = "Frost Death Knight"
+    case unholyDeathKnight = "Unholy Death Knight"
+    // Demon Hunter
+    case havocDemonHunter = "Havoc Demon Hunter"
+    case vengeanceDemonHunter = "Vengeance Demon Hunter"
+    // Druid
+    case balanceDruid = "Balance Druid"
+    case feralDruid = "Feral Druid"
+    case guardianDruid = "Guardian Druid"
+    case restorationDruid = "Restoration Druid"
+    // Evoker
+    case augmentationEvoker = "Augmentation Evoker"
+    case devastationEvoker = "Devastation Evoker"
+    case preservationEvoker = "Preservation Evoker"
+    // Hunter
+    case beastMasteryHunter = "Beast Mastery Hunter"
+    case marksmanshipHunter = "Marksmanship Hunter"
+    case survivalHunter = "Survival Hunter"
+    // Mage
+    case arcaneMage = "Arcane Mage"
+    case fireMage = "Fire Mage"
+    case frostMage = "Frost Mage"
+    // Monk
+    case brewmasterMonk = "Brewmaster Monk"
+    case mistweaverMonk = "Mistweaver Monk"
+    case windwalkerMonk = "Windwalker Monk"
+    // Paladin
+    case holyPaladin = "Holy Paladin"
+    case protectionPaladin = "Protection Paladin"
+    case retributionPaladin = "Retribution Paladin"
+    // Priest
+    case disciplinePriest = "Discipline Priest"
+    case holyPriest = "Holy Priest"
+    case shadowPriest = "Shadow Priest"
+    // Rogue
+    case assassinationRogue = "Assassination Rogue"
+    case outlawRogue = "Outlaw Rogue"
+    case subtletyRogue = "Subtlety Rogue"
+    // Shaman
+    case elementalShaman = "Elemental Shaman"
+    case enhancementShaman = "Enhancement Shaman"
+    case restorationShaman = "Restoration Shaman"
+    // Warlock
+    case afflictionWarlock = "Affliction Warlock"
+    case demonologyWarlock = "Demonology Warlock"
+    case destructionWarlock = "Destruction Warlock"
+    // Warrior
+    case armsWarrior = "Arms Warrior"
+    case furyWarrior = "Fury Warrior"
+    case protectionWarrior = "Protection Warrior"
+
+    var role: Role {
+        switch self {
+        case .bloodDeathKnight, .vengeanceDemonHunter, .guardianDruid,
+             .brewmasterMonk, .protectionPaladin, .protectionWarrior:
+            return .tank
+        case .preservationEvoker, .restorationDruid, .mistweaverMonk,
+             .holyPaladin, .disciplinePriest, .holyPriest, .restorationShaman:
+            return .healer
+        default:
+            return .dps
+        }
+    }
+
+    var roleColor: Color {
+        switch role {
+        case .tank: return .blue
+        case .healer: return .green
+        case .dps: return .red
+        }
+    }
+}
+
 enum Day: String, CaseIterable {
     case monday = "Monday"
     case tuesday = "Tuesday"
@@ -45,8 +121,11 @@ enum WoWRealm: String, CaseIterable {
     case emeraldDream = "Emerald Dream - US"
     case proudmoore = "Proudmoore - US"
     case sargeras = "Sargeras - US"
-    case frostmourne = "Frostmourne - US"
-    case barthilas = "Barthilas - US"
+    case frostmourne = "Frostmourne - OCE"
+    case barthilas = "Barthilas - OCE"
+    case jubeithos = "Jubei'Thos - OCE"
+    case gundrak = "Gundrak - OCE"
+    case saurfang = "Saurfang - OCE"
     case ragnaros = "Ragnaros - EU"
     case kazzak = "Kazzak - EU"
     case draenor = "Draenor - EU"

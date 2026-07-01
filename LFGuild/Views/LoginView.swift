@@ -160,39 +160,6 @@ struct LoginView: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(.blue)
             }
-
-            #if DEBUG
-            HStack(spacing: 16) {
-                Divider()
-                Text("or")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Divider()
-            }
-
-            Button(action: signInAnonymously) {
-                HStack(spacing: 8) {
-                    if case .loading = authManager.authState {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    }
-
-                    Text("Continue as Guest")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .foregroundStyle(.primary)
-                .background(.gray.opacity(0.12))
-                .clipShape(.rect(cornerRadius: 16))
-            }
-            .disabled(authManager.authState == .loading)
-
-            Text("No account required. Perfect for testing!")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            #endif
         }
     }
 
@@ -214,15 +181,6 @@ struct LoginView: View {
         }
     }
 
-    private func signInAnonymously() {
-        Task {
-            do {
-                try await authManager.signInAnonymously()
-            } catch {
-                // Error is already stored in authManager.lastError
-            }
-        }
-    }
 }
 
 #Preview {

@@ -45,7 +45,7 @@ struct BattleNetNamedType: Codable {
 struct BattleNetRealm: Codable {
     let id: Int
     let slug: String
-    let name: String
+    let name: String?
 }
 
 // MARK: - Guild Roster
@@ -62,7 +62,7 @@ struct BattleNetRosterEntry: Codable {
 struct BattleNetRosterCharacter: Codable {
     let name: String
     let level: Int
-    let playableClass: BattleNetNamedType
+    let playableClass: BattleNetPlayableClass
     let realm: BattleNetRealm
 
     enum CodingKeys: String, CodingKey {
@@ -73,9 +73,101 @@ struct BattleNetRosterCharacter: Codable {
     }
 }
 
+struct BattleNetPlayableClass: Codable {
+    let id: Int
+    let name: String?
+
+    var className: String {
+        BattleNetPlayableClass.className(for: id)
+    }
+
+    static func className(for classId: Int) -> String {
+        switch classId {
+        case 1: return "Warrior"
+        case 2: return "Paladin"
+        case 3: return "Hunter"
+        case 4: return "Rogue"
+        case 5: return "Priest"
+        case 6: return "Death Knight"
+        case 7: return "Shaman"
+        case 8: return "Mage"
+        case 9: return "Warlock"
+        case 10: return "Monk"
+        case 11: return "Druid"
+        case 12: return "Demon Hunter"
+        case 13: return "Evoker"
+        default: return "Unknown"
+        }
+    }
+}
+
+// MARK: - Realm / Leaderboard Discovery
+
+struct BattleNetHref: Codable {
+    let href: String
+}
+
+struct BattleNetRealmSlugResponse: Codable {
+    let slug: String
+    let connectedRealm: BattleNetHref
+
+    enum CodingKeys: String, CodingKey {
+        case slug
+        case connectedRealm = "connected_realm"
+    }
+}
+
+struct BattleNetLeaderboardIndexResponse: Codable {
+    let currentLeaderboards: [BattleNetLeaderboardEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case currentLeaderboards = "current_leaderboards"
+    }
+}
+
+struct BattleNetLeaderboardEntry: Codable {
+    let key: BattleNetHref
+    let id: Int
+    let name: String?
+}
+
+struct BattleNetLeaderboardResponse: Codable {
+    let leadingGroups: [BattleNetLeaderboardGroup]
+
+    enum CodingKeys: String, CodingKey {
+        case leadingGroups = "leading_groups"
+    }
+}
+
+struct BattleNetLeaderboardGroup: Codable {
+    let ranking: Int
+    let members: [BattleNetLeaderboardMember]
+}
+
+struct BattleNetLeaderboardMember: Codable {
+    let profile: BattleNetLeaderboardProfile
+}
+
+struct BattleNetLeaderboardProfile: Codable {
+    let name: String
+    let realm: BattleNetRealm
+}
+
+// MARK: - Character Profile (for guild discovery)
+
+struct BattleNetCharacterProfileSummary: Codable {
+    let guild: BattleNetCharacterGuild?
+}
+
+struct BattleNetCharacterGuild: Codable {
+    let name: String
+    let realm: BattleNetRealm
+    let faction: BattleNetNamedType?
+}
+
 // MARK: - Errors
 
-enum BattleNetError: LocalizedError {
+enum BattleNetError: LocalizedError, Equatable {
     case missingCredentials
     case invalidCredentials
     case guildNotFound

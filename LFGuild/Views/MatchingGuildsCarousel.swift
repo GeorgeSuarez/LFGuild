@@ -17,24 +17,28 @@ struct MatchingGuildsCarousel: View {
     @State private var errorMessage: String?
 
     private let cardWidth: CGFloat = 300
-    private let cardHeight: CGFloat = 380
 
     /// Optional closure invoked before reloading cards, e.g. to refresh the user's profile.
     var onRefresh: (() async -> Void)?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                header
-                content
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    header
+                        .padding(.vertical, 12)
+                    content
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(minWidth: geometry.size.width, minHeight: geometry.size.height)
             }
-        }
-        .refreshable {
-            await onRefresh?()
-            await loadCards()
-        }
-        .task(id: authManager.currentUser?.firebaseUID) {
-            await loadCards()
+            .refreshable {
+                await onRefresh?()
+                await loadCards()
+            }
+            .task(id: authManager.currentUser?.firebaseUID) {
+                await loadCards()
+            }
         }
     }
 
@@ -80,7 +84,8 @@ struct MatchingGuildsCarousel: View {
                     CardView(card: card) {
                         selectedCard = card
                     }
-                    .frame(width: cardWidth, height: cardHeight)
+                    .frame(width: cardWidth)
+                    .frame(maxHeight: .infinity)
                     .scrollTransition(.interactive, axis: .horizontal) { effect, phase in
                         effect
                             .scaleEffect(phase.isIdentity ? 1.0 : 0.92)
@@ -88,9 +93,10 @@ struct MatchingGuildsCarousel: View {
                     }
                 }
             }
+            .frame(maxHeight: .infinity)
             .scrollTargetLayout()
         }
-        .contentMargins(.horizontal, 16, for: .scrollContent)
+        .contentMargins(16, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned)
         .sheet(item: $selectedCard) { card in
             CardDetailView(
@@ -112,8 +118,8 @@ struct MatchingGuildsCarousel: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
-        .frame(height: cardHeight)
-        .frame(maxWidth: .infinity)
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var emptyView: some View {
@@ -137,8 +143,7 @@ struct MatchingGuildsCarousel: View {
             .buttonStyle(.borderedProminent)
         }
         .padding()
-        .frame(height: cardHeight)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorView(message: String) -> some View {
@@ -158,8 +163,7 @@ struct MatchingGuildsCarousel: View {
             .buttonStyle(.borderedProminent)
         }
         .padding()
-        .frame(height: cardHeight)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func loadCards() async {

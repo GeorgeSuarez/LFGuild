@@ -474,6 +474,9 @@ class AuthenticationManager: ObservableObject {
         if let rolesArray = publicData["roles"] as? [String] ?? legacyPreferencesData["roles"] as? [String] {
             user.roles = Set(rolesArray)
         }
+        if let specializationsArray = publicData["specializations"] as? [String] ?? legacyPreferencesData["specializations"] as? [String] {
+            user.specializations = Set(specializationsArray)
+        }
         if let daysArray = publicData["availableDays"] as? [String] ?? legacyPreferencesData["availableDays"] as? [String] {
             user.availableDays = Set(daysArray)
         }

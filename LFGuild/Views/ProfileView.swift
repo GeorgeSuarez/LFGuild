@@ -14,9 +14,6 @@ struct ProfileView: View {
     @State private var showingEditProfile = false
     @State private var verificationMessage: String?
     @State private var isVerificationLoading = false
-    #if DEBUG
-    @State private var showingSeedData = false
-    #endif
 
     var isSheet: Bool = false
 
@@ -46,7 +43,7 @@ struct ProfileView: View {
 
                             Text(authManager.isEmailVerified
                                  ? "Your email address is verified."
-                                 : "Verify your email to create guilds and submit applications.")
+                                 : "Verify your email to apply to guilds.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -101,15 +98,6 @@ struct ProfileView: View {
                 .foregroundColor(.red)
             }
 
-            #if DEBUG
-            Section("Debug") {
-                Button("Seed Sample Data") {
-                    showingSeedData = true
-                }
-                .foregroundColor(.green)
-            }
-            #endif
-
             Section {
                 Button("Sign Out") {
                     authManager.signOut()
@@ -133,13 +121,7 @@ struct ProfileView: View {
             ProfileEditView(viewModel: viewModel)
                 .environmentObject(authManager)
         }
-        #if DEBUG
-        .sheet(isPresented: $showingSeedData) {
-            SeedDataView()
-                .environmentObject(authManager)
-        }
-        #endif
-       .alert("Delete Account", isPresented: $viewModel.showingDeleteConfirmation) {
+        .alert("Delete Account", isPresented: $viewModel.showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
                 Task {

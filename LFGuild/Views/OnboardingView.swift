@@ -15,6 +15,7 @@ struct OnboardingView: View {
     
     @State private var currentStep = 0
     @State private var selectedRoles: Set<Role> = []
+    @State private var selectedSpecializations: Set<Specialization> = []
     @State private var availableDays: Set<Day> = []
     @State private var availableStartTime = Date()
     @State private var availableEndTime = Date()
@@ -23,9 +24,9 @@ struct OnboardingView: View {
     @State private var isSaving = false
     @State private var showingError = false
     @State private var errorMessage = ""
-    
+
     private let db = Firestore.firestore()
-    private let totalSteps = 5
+    private let totalSteps = 6
     
     var body: some View {
         NavigationView {
@@ -49,14 +50,19 @@ struct OnboardingView: View {
                         case 1:
                             RolesStepView(selectedRoles: $selectedRoles)
                         case 2:
+                            SpecializationsStepView(
+                                selectedSpecializations: $selectedSpecializations,
+                                selectedRoles: selectedRoles
+                            )
+                        case 3:
                             AvailabilityStepView(
                                 availableDays: $availableDays,
                                 startTime: $availableStartTime,
                                 endTime: $availableEndTime
                             )
-                        case 3:
-                            TagsStepView(selectedTags: $selectedTags)
                         case 4:
+                            TagsStepView(selectedTags: $selectedTags)
+                        case 5:
                             RealmsStepView(selectedRealms: $selectedRealms)
                         default:
                             EmptyView()
@@ -104,9 +110,12 @@ struct OnboardingView: View {
             } message: {
                 Text(errorMessage)
             }
+            .onChange(of: selectedRoles) { _, newRoles in
+                selectedSpecializations = selectedSpecializations.filter { newRoles.contains($0.role) }
+            }
         }
     }
-    
+
     private var isNextDisabled: Bool {
         switch currentStep {
         case 0:
@@ -114,10 +123,12 @@ struct OnboardingView: View {
         case 1:
             return selectedRoles.isEmpty
         case 2:
-            return availableDays.isEmpty
+            return selectedSpecializations.isEmpty
         case 3:
-            return selectedTags.isEmpty
+            return availableDays.isEmpty
         case 4:
+            return selectedTags.isEmpty
+        case 5:
             return selectedRealms.isEmpty
         default:
             return true
@@ -142,6 +153,7 @@ struct OnboardingView: View {
         Task {
             do {
                 let rolesArray = Array(selectedRoles.map { $0.rawValue })
+                let specializationsArray = Array(selectedSpecializations.map { $0.rawValue })
                 let daysArray = Array(availableDays.map { $0.rawValue })
                 let tagsArray = Array(selectedTags.map { $0.rawValue })
                 let realmsArray = Array(selectedRealms.map { $0.rawValue })
@@ -149,6 +161,7 @@ struct OnboardingView: View {
                 let publicProfileData: [String: Any] = [
                     "name": user.name,
                     "roles": rolesArray,
+                    "specializations": specializationsArray,
                     "availableDays": daysArray,
                     "availableStartTime": Timestamp(date: availableStartTime),
                     "availableEndTime": Timestamp(date: availableEndTime),
@@ -165,6 +178,7 @@ struct OnboardingView: View {
                 // Update local user model
                 await MainActor.run {
                     user.roles = Set(rolesArray)
+                    user.specializations = Set(specializationsArray)
                     user.availableDays = Set(daysArray)
                     user.availableStartTime = availableStartTime
                     user.availableEndTime = availableEndTime
@@ -295,10 +309,7 @@ struct RoleSelectionButton: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(role.rawValue)
                         .font(.headline)
-                    Text(roleDescription)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+               }
                 
                 Spacer()
                 
@@ -321,17 +332,92 @@ struct RoleSelectionButton: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }    
+}
+
+struct SpecializationsStepView: View {
+    @Binding var selectedSpecializations: Set<Specialization>
+    let selectedRoles: Set<Role>
+
+    private var sortedSelectedRoles: [Role] {
+        selectedRoles.sorted { Role.allCases.firstIndex(of: $0)! < Role.allCases.firstIndex(of: $1)! }
     }
-    
-    var roleDescription: String {
-        switch role {
-        case .tank:
-            return "Absorb damage and protect the group"
-        case .healer:
-            return "Keep the group alive during encounters"
-        case .dps:
-            return "Deal damage to enemies and bosses"
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("What specializations do you play?")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text("Select all that match the roles you chose.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    ForEach(sortedSelectedRoles, id: \.self) { role in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(role.rawValue)
+                                .font(.headline)
+
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                                ForEach(Specialization.allCases.filter { $0.role == role }, id: \.self) { specialization in
+                                    SpecializationSelectionButton(
+                                        specialization: specialization,
+                                        isSelected: selectedSpecializations.contains(specialization)
+                                    ) {
+                                        if selectedSpecializations.contains(specialization) {
+                                            selectedSpecializations.remove(specialization)
+                                        } else {
+                                            selectedSpecializations.insert(specialization)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
+    }
+}
+
+struct SpecializationSelectionButton: View {
+    let specialization: Specialization
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(specialization.rawValue)
+                    .font(.subheadline)
+                    .multilineTextAlignment(.leading)
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(specialization.roleColor)
+                        .font(.title3)
+                } else {
+                    Circle()
+                        .stroke(Color.gray, lineWidth: 2)
+                        .frame(width: 22, height: 22)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(isSelected ? specialization.roleColor.opacity(0.12) : Color(.systemGray6))
+            .foregroundColor(isSelected ? specialization.roleColor : .primary)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? specialization.roleColor : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
@@ -339,7 +425,7 @@ struct AvailabilityStepView: View {
     @Binding var availableDays: Set<Day>
     @Binding var startTime: Date
     @Binding var endTime: Date
-    
+
     var body: some View {
         VStack(spacing: 20) {
             Text("When are you available?")

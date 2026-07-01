@@ -197,7 +197,7 @@ class GuildManager: ObservableObject {
                 BattleNetOfficer(
                     name: $0.character.name,
                     level: $0.character.level,
-                    playableClass: $0.character.playableClass.name,
+                    playableClass: $0.character.playableClass.className,
                     rank: $0.rank
                 )
             }

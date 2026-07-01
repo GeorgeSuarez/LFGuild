@@ -52,6 +52,9 @@ struct ContentView: View {
                 showOnboarding = false
             }
         }
+        .task(id: authManager.currentUser?.firebaseUID) {
+            await GuildDiscoveryManager.shared.importPopularGuildsIfNeeded()
+        }
     }
 }
 

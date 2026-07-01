@@ -14,6 +14,7 @@ class UserModel: Identifiable, ObservableObject, Equatable {
     @Published var email: String
     @Published var countryRegion: String
     @Published var roles: Set<String> = []
+    @Published var specializations: Set<String> = []
     @Published var availableDays: Set<String> = []
     @Published var availableStartTime: Date?
     @Published var availableEndTime: Date?
