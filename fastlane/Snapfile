@@ -1,6 +1,5 @@
 devices([
   "iPhone 17 Pro",
-  "iPad Pro 11-inch (M5)"
 ])
 
 languages([

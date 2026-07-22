@@ -20,6 +20,8 @@ final class LFGuildUITests: XCTestCase {
         setupSnapshot(app)
         app.launch()
 
+        XCUIDevice.shared.orientation = .portrait
+
         let tabBar = app.tabBars.firstMatch
         let exists = NSPredicate(format: "exists == true")
         expectation(for: exists, evaluatedWith: tabBar, handler: nil)
