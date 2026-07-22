@@ -35,6 +35,10 @@ struct GuildModel: Identifiable, Codable, Hashable {
     var battleNetOfficers: [BattleNetOfficer]?
     var battleNetLastSyncedAt: Date?
 
+    /// Debug-only flag marking guilds created by the test seeder so they can be
+    /// cleaned up. Optional so existing documents decode without it.
+    var isTestGuild: Bool?
+
     init(
         id: String? = nil,
         name: String,
@@ -59,7 +63,8 @@ struct GuildModel: Identifiable, Codable, Hashable {
         faction: String? = nil,
         battleNetMemberCount: Int? = nil,
         battleNetOfficers: [BattleNetOfficer]? = nil,
-        battleNetLastSyncedAt: Date? = nil
+        battleNetLastSyncedAt: Date? = nil,
+        isTestGuild: Bool? = nil
     ) {
         self.id = id
         self.name = name
@@ -85,6 +90,7 @@ struct GuildModel: Identifiable, Codable, Hashable {
         self.battleNetMemberCount = battleNetMemberCount
         self.battleNetOfficers = battleNetOfficers
         self.battleNetLastSyncedAt = battleNetLastSyncedAt
+        self.isTestGuild = isTestGuild
     }
     
     var raidTimeDisplay: String {

@@ -73,14 +73,18 @@ struct CardDetailView: View {
                             HStack {
                                 Image(systemName: "star.fill")
                                     .foregroundColor(.yellow)
-                                Text("\(Int(card.matchScore * 100))% Match")
+                                Text("\(Int((matchBreakdown?.total ?? card.matchScore) * 100))% Match")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.yellow)
                                 Spacer()
                             }
                         }
-                        
+
+                        if let breakdown = matchBreakdown, breakdown.total > 0 {
+                            MatchScoreBreakdownView(breakdown: breakdown)
+                        }
+
                         VStack(alignment: .leading, spacing: 8) {
                             Text("About")
                                 .font(.headline)
@@ -394,6 +398,14 @@ struct CardDetailView: View {
         return currentUserId == leaderId
     }
 
+    /// Recomputes the match breakdown from the loaded guild + current user so
+    /// the "Why You Matched" section reflects the freshest guild data.
+    private var matchBreakdown: MatchScoreBreakdown? {
+        guard let user = authManager.currentUser,
+              let guild else { return nil }
+        return MatchScorer.breakdown(user: user, guild: guild)
+    }
+
     private var displayedMemberCount: Int {
         guild?.battleNetMemberCount ?? card.memberCount
     }
@@ -456,13 +468,51 @@ struct CardDetailView: View {
     }
 }
 
+struct MatchScoreBreakdownView: View {
+    let breakdown: MatchScoreBreakdown
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Why You Matched")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text("\(Int(breakdown.total * 100))%")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.yellow)
+            }
+
+            ForEach(breakdown.rows, id: \.label) { row in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(row.label)
+                            .font(.subheadline)
+                        Spacer()
+                        Text("+\(Int(row.points * 100))")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                    }
+                    ProgressView(value: row.portion)
+                        .tint(row.portion > 0.6 ? .green : (row.portion > 0 ? .blue : .gray))
+                }
+            }
+        }
+        .padding()
+        .background(Color.yellow.opacity(0.05))
+        .clipShape(.rect(cornerRadius: 12))
+    }
+}
+
 struct GuildApplicationSheet: View {
     let guildName: String
     let onSubmit: (String) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var message = ""
     @FocusState private var isFocused: Bool
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
@@ -470,13 +520,13 @@ struct GuildApplicationSheet: View {
                     Text("Apply to \(guildName)")
                         .font(.title2)
                         .fontWeight(.bold)
-                    
+
                     Text("Introduce yourself and tell the guild leader why you'd be a good fit.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                
+
                 TextEditor(text: $message)
                     .focused($isFocused)
                     .frame(minHeight: 150)
@@ -487,7 +537,7 @@ struct GuildApplicationSheet: View {
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(Color(.systemGray4), lineWidth: 1)
                     )
-                
+
                 Spacer()
             }
             .padding()
@@ -499,7 +549,7 @@ struct GuildApplicationSheet: View {
                         dismiss()
                     }
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Submit") {
                         onSubmit(message)

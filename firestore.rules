@@ -52,6 +52,22 @@ service cloud.firestore {
           isValidString(request.resource.data.countryRegion, 1, 100));
 
       allow delete: if isOwner(userId);
+
+      // Saved ("favorite") guilds for the signed-in user.
+      match /favorites/{guildId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.keys().hasAll(["guildId"]);
+        allow delete: if isOwner(userId);
+      }
+
+      // Dismissed ("hidden") guilds for the signed-in user.
+      match /hiddenGuilds/{guildId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.keys().hasAll(["guildId"]);
+        allow delete: if isOwner(userId);
+      }
     }
 
     // Public profile data (readable by any authenticated user for matching/messaging).

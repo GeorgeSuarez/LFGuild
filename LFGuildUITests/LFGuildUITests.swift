@@ -1,39 +1,49 @@
-//
-//  LFGuildUITests.swift
-//  LFGuildUITests
-//
-//  Created by George Suarez on 7/28/25.
-//
-
 import XCTest
 
 final class LFGuildUITests: XCTestCase {
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testScreenshots() throws {
         let app = XCUIApplication()
+
+        // Explicitly set the detection flag before setupSnapshot and launch.
+        // This is a belt-and-suspenders approach: setupSnapshot also adds
+        // -FASTLANE_SNAPSHOT via SnapshotHelper, but we set -UITesting directly
+        // so it works regardless of SnapshotHelper's internal state.
+        app.launchArguments += ["-UITesting"]
+        app.launchEnvironment["UITESTING"] = "1"
+
+        setupSnapshot(app)
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        let tabBar = app.tabBars.firstMatch
+        let exists = NSPredicate(format: "exists == true")
+        expectation(for: exists, evaluatedWith: tabBar, handler: nil)
+        waitForExpectations(timeout: 15)
+
+        let tabs: [(name: String, tabLabel: String)] = [
+            ("01Home", "Home"),
+            ("02Search", "Search"),
+            ("03Messages", "Messages"),
+            ("04Profile", "Profile"),
+        ]
+
+        for (name, tabLabel) in tabs {
+            let tabButton = tabBar.buttons[tabLabel]
+            if tabButton.exists {
+                tabButton.tap()
+                sleep(2)
+            }
+            snapshot(name)
+        }
     }
 
     @MainActor
     func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }

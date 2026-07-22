@@ -6,10 +6,16 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct GuildSearchView: View {
     @EnvironmentObject private var authManager: AuthenticationManager
-    @State private var selectedRealm: WoWRealm?
+    @StateObject private var guildManager = GuildManager()
+    @EnvironmentObject private var lists: UserGuildListsManager
+
+    @State private var mode: SearchMode = .lfguild
+
+    // Shared
     @State private var searchResults: [GuildModel] = []
     @State private var selectedGuild: GuildModel?
     @State private var isLoading = false
@@ -17,15 +23,33 @@ struct GuildSearchView: View {
     @State private var errorMessage: String?
     @State private var showingError = false
 
+    // LFGuild (Firestore) search state
+    @State private var searchQuery = ""
+    @State private var filters = GuildSearchFilters.empty
+    @State private var nextCursor: QueryDocumentSnapshot?
+    @State private var isLoadingMore = false
+    @State private var showingFilters = false
+    @FocusState private var isSearchFieldFocused: Bool
+
+    // Battle.net search state
+    @State private var selectedRealm: WoWRealm?
+
     private let searchableRealms = WoWRealm.allCases
-    private let maxResults = 5
+    private let pageSize = 20
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                realmSelectorSection
-                searchButtonSection
-                resultsSection
+                modePicker
+                switch mode {
+                case .lfguild:
+                    lfguildSearchSection
+                    lfguildResultsSection
+                case .battleNet:
+                    realmSelectorSection
+                    searchButtonSection
+                    battleNetResultsSection
+                }
             }
             .navigationTitle("Search Guilds")
             .navigationBarTitleDisplayMode(.large)
@@ -49,9 +73,150 @@ struct GuildSearchView: View {
                 )
             }
         }
+        .sheet(isPresented: $showingFilters) {
+            GuildSearchFiltersView(filters: $filters)
+                .onDisappear {
+                    // Re-run the LFGuild search whenever filters change.
+                    if mode == .lfguild { Task { await runLfguildSearch(reset: true) } }
+                }
+        }
     }
 
-    // MARK: - Sections
+    // MARK: - Mode picker
+
+    private var modePicker: some View {
+        Picker("Search Mode", selection: $mode) {
+            Text("LFGuild").tag(SearchMode.lfguild)
+            Text("Battle.net").tag(SearchMode.battleNet)
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal)
+        .padding(.top, 8)
+        .onChange(of: mode) { _, _ in
+            searchResults = []
+            hasSearched = false
+            nextCursor = nil
+        }
+    }
+
+    // MARK: - LFGuild (Firestore) search
+
+    private var lfguildSearchSection: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search by name or tag", text: $searchQuery)
+                    .textFieldStyle(.plain)
+                    .focused($isSearchFieldFocused)
+                    .submitLabel(.search)
+                    .onSubmit { Task { await runLfguildSearch(reset: true) } }
+
+                if !searchQuery.isEmpty {
+                    Button {
+                        searchQuery = ""
+                        Task { await runLfguildSearch(reset: true) }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .clipShape(.rect(cornerRadius: 12))
+
+            HStack {
+                Menu {
+                    Picker("Sort", selection: $filters.sort) {
+                        ForEach(GuildSearchSortOption.allCases) { option in
+                            Text(option.label).tag(option)
+                        }
+                    }
+                } label: {
+                    Label(filters.sort.label, systemImage: "arrow.up.arrow.down")
+                        .font(.subheadline)
+                }
+
+                Spacer()
+
+                Button {
+                    showingFilters = true
+                } label: {
+                    Label("Filters", systemImage: "line.3.horizontal.decrease.circle")
+                        .font(.subheadline)
+                        .foregroundColor(filters.isDefault ? Color.primary : Color.blue)
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding(.top, 8)
+        .background(.ultraThinMaterial)
+    }
+
+    @ViewBuilder
+    private var lfguildResultsSection: some View {
+        if isLoading && searchResults.isEmpty {
+            LoadingSearchView(message: "Searching guilds...")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            lfguildResultsList
+        }
+    }
+
+    private var lfguildResultsList: some View {
+        List {
+            ForEach(searchResults, id: \.self) { guild in
+                LFGuildGuildRow(
+                    guild: guild,
+                    isFavorite: lists.isFavorite(guild.id),
+                    onToggleFavorite: { Task { await lists.toggleFavorite(guildId: guild.id ?? "") } }
+                )
+                .onTapGesture { selectedGuild = guild }
+            }
+
+            if nextCursor != nil {
+                Button {
+                    Task { await loadMore() }
+                } label: {
+                    HStack {
+                        if isLoadingMore { ProgressView() }
+                        Text(isLoadingMore ? "Loading..." : "Load More")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .disabled(isLoadingMore)
+            }
+        }
+        .listStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay { lfguildEmptyState }
+    }
+
+    @ViewBuilder
+    private var lfguildEmptyState: some View {
+        if searchResults.isEmpty && !isLoading {
+            VStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 40))
+                    .foregroundColor(.secondary)
+
+                Text(hasSearched ? "No guilds found" : "Find Your Guild")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                Text(hasSearched
+                     ? "Try a different keyword, adjust filters, or sort by another option."
+                     : "Search imported LFGuild guilds by name or tag. Need more options? Tap Filters.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding()
+        }
+    }
+
+    // MARK: - Battle.net search
 
     private var realmSelectorSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -94,7 +259,7 @@ struct GuildSearchView: View {
 
     private var searchButtonSection: some View {
         VStack(spacing: 12) {
-            Button(action: performSearch) {
+            Button(action: performBattleNetSearch) {
                 HStack {
                     if isLoading {
                         ProgressView()
@@ -120,32 +285,28 @@ struct GuildSearchView: View {
     }
 
     @ViewBuilder
-    private var resultsSection: some View {
+    private var battleNetResultsSection: some View {
         if isLoading && searchResults.isEmpty {
-            LoadingSearchView()
+            LoadingSearchView(message: "Loading guilds from Battle.net...")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            resultsList
+            battleNetResultsList
         }
     }
 
-    private var resultsList: some View {
-        List(displayedResults, id: \.self) { guild in
+    private var battleNetResultsList: some View {
+        List(searchResults, id: \.self) { guild in
             BattleNetGuildRow(guild: guild)
-                .onTapGesture {
-                    selectedGuild = guild
-                }
+                .onTapGesture { selectedGuild = guild }
         }
         .listStyle(.plain)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay {
-            emptyStateOverlay
-        }
+        .overlay { battleNetEmptyState }
     }
 
     @ViewBuilder
-    private var emptyStateOverlay: some View {
-        if displayedResults.isEmpty && !isLoading {
+    private var battleNetEmptyState: some View {
+        if searchResults.isEmpty && !isLoading {
             VStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 40))
@@ -166,16 +327,48 @@ struct GuildSearchView: View {
         }
     }
 
-    // MARK: - Computed Properties
-
-    /// Returns the top popular guilds from the selected realm, capped for testing.
-    private var displayedResults: [GuildModel] {
-        Array(searchResults.prefix(maxResults))
-    }
-
     // MARK: - Actions
 
-    private func performSearch() {
+    private func runLfguildSearch(reset: Bool) async {
+        if reset { nextCursor = nil }
+        isSearchFieldFocused = false
+        isLoading = true
+        hasSearched = true
+        errorMessage = nil
+
+        let page = await guildManager.searchGuilds(
+            query: searchQuery,
+            filters: filters,
+            pageSize: pageSize,
+            cursor: reset ? nil : nextCursor
+        )
+
+        if reset {
+            searchResults = page.guilds
+        } else {
+            searchResults.append(contentsOf: page.guilds)
+        }
+        nextCursor = page.nextCursor
+        isLoading = false
+
+        AnalyticsManager.shared.logSearchPerformed(query: searchQuery, resultCount: searchResults.count)
+    }
+
+    private func loadMore() async {
+        guard nextCursor != nil, !isLoadingMore else { return }
+        isLoadingMore = true
+        let page = await guildManager.searchGuilds(
+            query: searchQuery,
+            filters: filters,
+            pageSize: pageSize,
+            cursor: nextCursor
+        )
+        searchResults.append(contentsOf: page.guilds)
+        nextCursor = page.nextCursor
+        isLoadingMore = false
+    }
+
+    private func performBattleNetSearch() {
         guard let realm = selectedRealm else { return }
 
         isLoading = true
@@ -188,6 +381,7 @@ struct GuildSearchView: View {
                 await MainActor.run {
                     searchResults = results
                     isLoading = false
+                    AnalyticsManager.shared.logSearchPerformed(query: realm.rawValue, resultCount: results.count)
                 }
             } catch {
                 await MainActor.run {
@@ -199,9 +393,68 @@ struct GuildSearchView: View {
         }
     }
 
+    private enum SearchMode {
+        case lfguild, battleNet
+    }
 }
 
-// MARK: - Row
+// MARK: - Rows
+
+struct LFGuildGuildRow: View {
+    let guild: GuildModel
+    let isFavorite: Bool
+    let onToggleFavorite: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(guild.name)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                HStack(spacing: 4) {
+                    if let faction = guild.faction {
+                        Text(faction)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(factionColor(faction))
+                    }
+
+                    Text("· \(guild.memberCount) members")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Text(guild.serverRealm)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Button(action: onToggleFavorite) {
+                Image(systemName: isFavorite ? "heart.fill" : "heart")
+                    .foregroundStyle(isFavorite ? .pink : .secondary)
+                    .font(.title3)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isFavorite ? "Unsave \(guild.name)" : "Save \(guild.name)")
+
+            Image(systemName: "chevron.right")
+                .foregroundColor(.secondary)
+                .font(.caption)
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func factionColor(_ faction: String?) -> Color {
+        switch faction?.lowercased() {
+        case "alliance": return .blue
+        case "horde": return .red
+        default: return .gray
+        }
+    }
+}
 
 struct BattleNetGuildRow: View {
     let guild: GuildModel
@@ -253,11 +506,13 @@ struct BattleNetGuildRow: View {
 }
 
 struct LoadingSearchView: View {
+    var message = "Loading guilds from Battle.net..."
+
     var body: some View {
         VStack(spacing: 16) {
             ProgressView()
                 .scaleEffect(1.2)
-            Text("Loading guilds from Battle.net...")
+            Text(message)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -268,4 +523,5 @@ struct LoadingSearchView: View {
     GuildSearchView()
         .environmentObject(AuthenticationManager())
         .environmentObject(NotificationRouter())
+        .environmentObject(UserGuildListsManager.shared)
 }

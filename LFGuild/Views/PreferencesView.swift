@@ -10,6 +10,7 @@ import FirebaseFirestore
 
 struct PreferencesView: View {
     @EnvironmentObject private var authManager: AuthenticationManager
+    @StateObject private var guildManager = GuildManager()
     @State private var selectedRoles: Set<Role> = []
     @State private var selectedSpecializations: Set<Specialization> = []
     @State private var availableDays: Set<Day> = []
@@ -21,12 +22,18 @@ struct PreferencesView: View {
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
     @State private var isSaving = false
-    
+
+    // Live match preview
+    @State private var matchCount: Int?
+    @State private var previewTask: Task<Void, Never>?
+
     private let db = Firestore.firestore()
-    
+
     var body: some View {
         NavigationView {
             Form {
+                matchPreviewSection
+
                 Section(header: Text("Roles")) {
                     ForEach(Role.allCases, id: \.self) { role in
                         HStack {
@@ -256,6 +263,7 @@ struct PreferencesView: View {
                 Task {
                     await loadCurrentPreferences()
                 }
+                scheduleMatchPreview()
             }
             .alert("Preferences Saved", isPresented: $showingSaveAlert) {
                 Button("OK") { }
@@ -270,7 +278,101 @@ struct PreferencesView: View {
             .onChange(of: selectedRoles) { _, newRoles in
                 selectedSpecializations = selectedSpecializations.filter { newRoles.contains($0.role) }
             }
+            .onChange(of: selectionFingerprint) { _, _ in
+                scheduleMatchPreview()
+            }
         }
+    }
+
+    // MARK: - Match preview
+
+    private var matchPreviewSection: some View {
+        Section {
+            HStack(spacing: 12) {
+                Image(systemName: "sparkles")
+                    .font(.title3)
+                    .foregroundStyle(.yellow)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Match preview")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text(previewSubtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                if guildManager.isLoading {
+                    ProgressView()
+                } else if let count = matchCount {
+                    Text("\(count)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(count == 0 ? .secondary : .blue)
+                        .accessibilityLabel("\(count) matching guild\(count == 1 ? "" : "s")")
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("Live Preview")
+        } footer: {
+            Text("Estimated guild matches based on your current selections. Save to update your recommendations.")
+        }
+    }
+
+    private var previewSubtitle: String {
+        let hasAny = !selectedRoles.isEmpty
+            || !selectedRealms.isEmpty
+            || !availableDays.isEmpty
+            || !selectedTags.isEmpty
+        guard hasAny else { return "Select preferences to see matches." }
+        guard let count = matchCount else { return "Counting matches..." }
+        if count == 0 { return "No matches yet — try widening your filters." }
+        return "guild\(count == 1 ? "" : "s") match your preferences."
+    }
+
+    /// A hashable fingerprint of the current selections so `.onChange` fires
+    /// when any relevant field changes.
+    private var selectionFingerprint: String {
+        [
+            selectedRoles.map(\.rawValue).joined(separator: ","),
+            selectedSpecializations.map(\.rawValue).joined(separator: ","),
+            availableDays.map(\.rawValue).joined(separator: ","),
+            selectedTags.map(\.rawValue).joined(separator: ","),
+            selectedRealms.map(\.rawValue).joined(separator: ","),
+            String(availableStartTime.timeIntervalSince1970),
+            String(availableEndTime.timeIntervalSince1970)
+        ].joined(separator: "|")
+    }
+
+    private func scheduleMatchPreview() {
+        previewTask?.cancel()
+        previewTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s debounce
+            guard !Task.isCancelled else { return }
+            await refreshMatchCount()
+        }
+    }
+
+    private func refreshMatchCount() async {
+        let previewUser = UserModel(
+            name: authManager.currentUser?.name ?? "",
+            email: authManager.currentUser?.email ?? "",
+            countryRegion: authManager.currentUser?.countryRegion ?? ""
+        )
+        previewUser.roles = Set(selectedRoles.map { $0.rawValue })
+        previewUser.specializations = Set(selectedSpecializations.map { $0.rawValue })
+        previewUser.availableDays = Set(availableDays.map { $0.rawValue })
+        previewUser.gamingTags = Set(selectedTags.map { $0.rawValue })
+        previewUser.preferredRealms = Set(selectedRealms.map { $0.rawValue })
+        previewUser.availableStartTime = availableStartTime
+        previewUser.availableEndTime = availableEndTime
+
+        let matches = await guildManager.fetchMatchingGuilds(for: previewUser)
+        guard !Task.isCancelled else { return }
+        await MainActor.run { matchCount = matches.count }
     }
 
     private func savePreferences() async {

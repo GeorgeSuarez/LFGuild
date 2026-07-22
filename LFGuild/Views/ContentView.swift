@@ -44,6 +44,7 @@ struct ContentView: View {
                     .environmentObject(authManager)
             }
         }
+        .environmentObject(UserGuildListsManager.shared)
         .onChange(of: authManager.authState) { _, newState in
             if case .authenticated = newState {
                 // Check if profile is complete when auth state changes
@@ -53,6 +54,7 @@ struct ContentView: View {
             }
         }
         .task(id: authManager.currentUser?.firebaseUID) {
+            await UserGuildListsManager.shared.configure(for: authManager.currentUser?.firebaseUID)
             await GuildDiscoveryManager.shared.importPopularGuildsIfNeeded()
         }
     }

@@ -117,7 +117,48 @@ class AuthenticationManager: ObservableObject {
     private let db = Firestore.firestore()
     private var authStateListener: AuthStateDidChangeListenerHandle?
 
+    /// Whether the app was launched via `fastlane snapshot` (UI testing for screenshots).
+    /// Falls back to UserDefaults to survive edge cases where launch arguments
+    /// aren't available during early initialization.
+    static let screenshotModeDefaultsKey = "FASTLANE_SNAPSHOT"
+
+    private static func enableScreenshotMode() {
+        UserDefaults.standard.set(true, forKey: screenshotModeDefaultsKey)
+    }
+
+    private static var isScreenshotMode: Bool {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-UITesting") || args.contains("-FASTLANE_SNAPSHOT") {
+            enableScreenshotMode()
+            return true
+        }
+        if ProcessInfo.processInfo.environment["UITESTING"] == "1" {
+            enableScreenshotMode()
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: screenshotModeDefaultsKey)
+    }
+
     init() {
+        if Self.isScreenshotMode {
+            let mockUser = UserModel(
+                firebaseUID: nil,
+                name: "Demo User",
+                email: "demo@example.com",
+                countryRegion: "United States"
+            )
+            mockUser.roles = ["DPS", "Healer"]
+            mockUser.availableDays = ["Monday", "Wednesday", "Friday"]
+            mockUser.gamingTags = ["Mythic+ Focused", "Casual"]
+            mockUser.preferredRealms = ["Stormrage - US", "Area-52 - US"]
+            mockUser.availableStartTime = Date()
+            mockUser.availableEndTime = Date().addingTimeInterval(4 * 60 * 60)
+
+            currentUser = mockUser
+            isEmailVerified = true
+            authState = .authenticated(mockUser)
+            return
+        }
         setupAuthStateListener()
     }
 

@@ -101,80 +101,143 @@ class GuildManager: ObservableObject {
         }
     }
     
-    // MARK: - Matching
-    
-    func fetchMatchingGuilds(for user: UserModel) async -> [GuildModel] {
+// MARK: - Matching
+     
+    func fetchMatchingGuilds(
+        for user: UserModel,
+        excludingHidden hiddenIds: Set<String> = []
+    ) async -> [GuildModel] {
         isLoading = true
         defer { isLoading = false }
         error = nil
 
         do {
-            var query: Query = db.collection("guilds")
+            let snapshot = try await db.collection("guilds")
                 .whereField("isActive", isEqualTo: true)
-            
-            // Filter by realm if user has preferred realms
-            if let preferredRealm = user.preferredRealms.first {
-                query = query.whereField("serverRealm", isEqualTo: preferredRealm)
-            }
-            
-            let snapshot = try await query.getDocuments()
+                .getDocuments()
+
             var guilds = snapshot.documents.compactMap { try? $0.data(as: GuildModel.self) }
-            
+
+            // Exclude guilds the user has hidden / dismissed.
+            if !hiddenIds.isEmpty {
+                guilds.removeAll { hiddenIds.contains($0.id ?? "") }
+            }
+
             // Client-side filtering for more complex criteria
             guilds = guilds.filter { guild in
                 // Check if user roles match guild needs
                 let userRoles = user.roles
                 let neededRoles = Set(guild.neededRoles)
                 let hasMatchingRole = userRoles.isEmpty || !userRoles.isDisjoint(with: neededRoles)
-                
+
                 // Check if user available days overlap with guild raid days
                 let userDays = user.availableDays
                 let guildDays = Set(guild.raidDays)
                 let hasMatchingDays = userDays.isEmpty || !userDays.isDisjoint(with: guildDays)
-                
+
                 // Check if guild is not full
                 let notFull = !guild.isFull
-                
+
                 return hasMatchingRole && hasMatchingDays && notFull
             }
-            
-            // Calculate match scores
+
+            // Calculate match scores using the shared MatchScorer (realm,
+            // role, specialization, days, time-of-day, and tags factors).
             guilds = guilds.map { guild in
                 var scoredGuild = guild
-                var score: Double = 0
-                
-                // Realm match (highest weight)
-                if user.preferredRealms.contains(guild.serverRealm) {
-                    score += 0.4
-                }
-                
-                // Role match
-                let userRoles = user.roles
-                let neededRoles = Set(guild.neededRoles)
-                if !userRoles.isEmpty && !neededRoles.isEmpty {
-                    let intersection = userRoles.intersection(neededRoles)
-                    score += Double(intersection.count) / Double(neededRoles.count) * 0.3
-                }
-                
-                // Days match
-                let userDays = user.availableDays
-                let guildDays = Set(guild.raidDays)
-                if !userDays.isEmpty && !guildDays.isEmpty {
-                    let intersection = userDays.intersection(guildDays)
-                    score += Double(intersection.count) / Double(guildDays.count) * 0.3
-                }
-                
-                scoredGuild.matchScore = score
+                scoredGuild.matchScore = MatchScorer.breakdown(user: user, guild: guild).total
                 return scoredGuild
             }
-            
+
             // Sort by match score
             return guilds.sorted { $0.matchScore > $1.matchScore }
-            
+
         } catch {
             self.error = .invalidData
             return []
         }
+    }
+
+    // MARK: - Search (Firestore)
+
+    /// A page of search results plus the cursor used to fetch the next page.
+    struct GuildSearchPage {
+        var guilds: [GuildModel]
+        var nextCursor: QueryDocumentSnapshot?
+        var hasMore: Bool { nextCursor != nil }
+    }
+
+    /// Searches the imported-guilds collection by name/tag keyword with filters,
+    /// sort, and pagination. Firestore has no native full-text search, so the
+    /// keyword is matched client-side against name + tags after a paginated
+    /// Firestore query.
+    func searchGuilds(
+        query: String,
+        filters: GuildSearchFilters,
+        pageSize: Int = 20,
+        cursor: QueryDocumentSnapshot? = nil
+    ) async -> GuildSearchPage {
+        let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        var firestoreQuery: Query = db.collection("guilds")
+            .whereField("isActive", isEqualTo: true)
+
+        // Apply a single equality filter that Firestore can index (serverRealm or region).
+        // Multiple equality filters require composite indexes; sticking with one keeps
+        // things index-free for now.
+        if let region = filters.regions.first, filters.regions.count == 1 {
+            firestoreQuery = firestoreQuery.whereField("region", isEqualTo: region)
+        }
+
+        let ordering = filters.primaryOrder
+        firestoreQuery = firestoreQuery.order(by: ordering.field, descending: ordering.descending)
+
+        if let cursor {
+            firestoreQuery = firestoreQuery.start(afterDocument: cursor)
+        }
+        firestoreQuery = firestoreQuery.limit(to: pageSize)
+
+        do {
+            let snapshot = try await firestoreQuery.getDocuments()
+            let docs = snapshot.documents
+
+            // Over-fetch is filtered client-side; collect enough pages by repeating
+            // up to a small cap when a keyword / filter trims the current page.
+            let matched = docs.compactMap { try? $0.data(as: GuildModel.self) }
+                .filter { guild in
+                    let keywordOk = keyword.isEmpty
+                        || guild.name.lowercased().contains(keyword)
+                        || guild.tags.contains(where: { $0.lowercased().contains(keyword) })
+                        || guild.description.lowercased().contains(keyword)
+                    return keywordOk && filters.matches(guild)
+                }
+
+            return GuildSearchPage(
+                guilds: matched,
+                nextCursor: docs.count == pageSize ? docs.last : nil
+            )
+        } catch {
+            self.error = .invalidData
+            return GuildSearchPage(guilds: [], nextCursor: nil)
+        }
+    }
+
+    /// Loads the full GuildModel documents for a user's saved guild IDs.
+    func fetchGuilds(byIds ids: [String]) async -> [GuildModel] {
+        guard !ids.isEmpty else { return [] }
+        var results: [GuildModel] = []
+        // Firestore `in` query supports up to 30 values per query; chunk for safety.
+        for chunk in ids.chunked(into: 30) {
+            do {
+                let snapshot = try await db.collection("guilds")
+                    .whereField(FieldPath.documentID(), in: chunk)
+                    .getDocuments()
+                results.append(contentsOf: snapshot.documents.compactMap { try? $0.data(as: GuildModel.self) })
+            } catch {
+                self.error = .invalidData
+            }
+        }
+        return results
     }
     
     // MARK: - Battle.net Enrichment
@@ -395,5 +458,16 @@ class GuildManager: ObservableObject {
         applicationsListener?.remove()
         guildsListener = nil
         applicationsListener = nil
+    }
+}
+
+private extension Array {
+    /// Splits the array into chunks of the given size. Firestore `in` queries
+    /// support at most 30 values, so callers chunk larger ID lists.
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [self] }
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
     }
 }

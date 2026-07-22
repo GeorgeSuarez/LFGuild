@@ -9,7 +9,7 @@ import SwiftUI
 
 struct CardView: View {
     let card: CardItem
-    let onViewMoreInfo: () -> Void
+    let onTap: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -20,6 +20,13 @@ struct CardView: View {
                     .multilineTextAlignment(.leading)
 
                 Spacer()
+
+                if card.isFavorite {
+                    Image(systemName: "heart.fill")
+                        .foregroundStyle(.pink)
+                        .font(.callout)
+                        .accessibilityLabel("Saved")
+                }
 
                 HStack(spacing: 4) {
                     Image(systemName: "person.2.fill")
@@ -61,7 +68,7 @@ struct CardView: View {
             Spacer()
 
             Button("View More Info") {
-                onViewMoreInfo()
+                onTap()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.regular)
@@ -107,7 +114,7 @@ struct MatchScoreBadge: View {
         matchScore: 0.85
     )
 
-    CardView(card: card, onViewMoreInfo: {})
+    CardView(card: card, onTap: {})
         .frame(width: 300, height: 380)
         .padding()
 }

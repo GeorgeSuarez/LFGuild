@@ -104,6 +104,17 @@ struct ProfileView: View {
                 }
                 .foregroundColor(.red)
             }
+
+            #if DEBUG
+            Section {
+                DeveloperToolsSection()
+                    .environmentObject(authManager)
+            } header: {
+                Text("Developer Tools")
+            } footer: {
+                Text("DEBUG-only. Seed sample guilds to test matching, search, and filters.")
+            }
+            #endif
         }
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
@@ -170,6 +181,49 @@ struct ProfileView: View {
         isVerificationLoading = false
     }
 }
+
+#if DEBUG
+struct DeveloperToolsSection: View {
+    @EnvironmentObject private var authManager: AuthenticationManager
+    @StateObject private var seeder = TestGuildSeeder()
+
+    var body: some View {
+        Button {
+            Task { await seeder.seed(authManager: authManager) }
+        } label: {
+            HStack {
+                if seeder.isSeeding {
+                    ProgressView()
+                } else {
+                    Image(systemName: "plus.app.fill")
+                }
+                Text(seeder.isSeeding ? "Seeding..." : "Seed Test Guilds")
+            }
+        }
+        .disabled(seeder.isSeeding || seeder.isRemoving)
+
+        Button(role: .destructive) {
+            Task { await seeder.removeAll(authManager: authManager) }
+        } label: {
+            HStack {
+                if seeder.isRemoving {
+                    ProgressView()
+                } else {
+                    Image(systemName: "trash")
+                }
+                Text(seeder.isRemoving ? "Removing..." : "Remove Test Guilds")
+            }
+        }
+        .disabled(seeder.isSeeding || seeder.isRemoving)
+
+        if let status = seeder.statusMessage {
+            Text(status)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+#endif
 
 #Preview {
     ProfileView()
