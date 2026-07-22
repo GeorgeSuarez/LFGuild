@@ -1,10 +1,10 @@
 # LFGuild
 
 <p align="center">
-  <img src="fastlane/screenshots/en-US/iPhone-17-Pro-01Home.png" width="200" alt="Home" />
-  <img src="fastlane/screenshots/en-US/iPhone-17-Pro-02Search.png" width="200" alt="Search" />
-  <img src="fastlane/screenshots/en-US/iPhone-17-Pro-03Messages.png" width="200" alt="Messages" />
-  <img src="fastlane/screenshots/en-US/iPhone-17-Pro-04Profile.png" width="200" alt="Profile" />
+  <img src="screenshots/en-US/iPhone%2017%20Pro-01Home.png" width="200" alt="Home" />
+  <img src="screenshots/en-US/iPhone%2017%20Pro-02Search.png" width="200" alt="Search" />
+  <img src="screenshots/en-US/iPhone%2017%20Pro-03Messages.png" width="200" alt="Messages" />
+  <img src="screenshots/en-US/iPhone%2017%20Pro-04Profile.png" width="200" alt="Profile" />
 </p>
 
 <p align="center">
